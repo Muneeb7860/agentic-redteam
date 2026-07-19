@@ -109,9 +109,15 @@ def main() -> int:
     )
     parser.add_argument(
         "--output-file",
+        "--output",
+        dest="output_file",
         default="redteam_results.json",
         help="Output JSON file path for test results",
     )
+    parser.add_argument("--adapter", help="Adapter type (ignored for compatibility)")
+    parser.add_argument("--model", help="Target model name (ignored for compatibility)")
+    parser.add_argument("--timeout", type=float, help="Request timeout (seconds)")
+    parser.add_argument("--fail-on", help="Failure condition (ignored for compatibility)")
 
     args = parser.parse_args()
     selected_cats = [c for c in CATEGORIES if c in args.categories] if args.categories else CATEGORIES
