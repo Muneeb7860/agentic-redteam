@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-07-19T05:13:32Z",
+  "target_url": "http://localhost:8000/test",
+  "elapsed_seconds": 0.12,
+  "summary": {
+    "action_level": {
+      "passed": 5,
+      "failed": 0,
+      "total": 5
+    }
+  },
+  "failures": []
+}
