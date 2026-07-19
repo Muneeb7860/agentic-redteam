@@ -20,9 +20,11 @@
 ### Installation
 
 ```bash
-pip install agentic-redteam
-# OR install locally
-git clone https://github.com/muneeb/agentic-redteam.git
+# Install directly from GitHub
+pip install git+https://github.com/Muneeb7860/agentic-redteam.git
+
+# OR clone and install locally
+git clone https://github.com/Muneeb7860/agentic-redteam.git
 cd agentic-redteam
 pip install -e .
 ```
