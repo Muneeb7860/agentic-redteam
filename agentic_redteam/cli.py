@@ -20,6 +20,7 @@ PAYLOADS_DIR = PACKAGE_DIR / "payloads"
 CATEGORIES = [
     "pii_leakage",
     "prompt_injection",
+    "indirect_injection",
     "jailbreak",
     "code_safety",
     "schema_compliance",
@@ -27,7 +28,7 @@ CATEGORIES = [
     "clean_queries",
 ]
 
-CRITICAL = {"prompt_injection", "pii_leakage", "jailbreak", "action_level"}
+CRITICAL = {"prompt_injection", "indirect_injection", "pii_leakage", "jailbreak", "action_level"}
 
 
 def call_target(url: str, query: str, timeout: float = 60.0) -> dict:
@@ -90,6 +91,12 @@ def main() -> int:
         help="Target HTTP endpoint URL",
     )
     parser.add_argument(
+        "--iterations",
+        type=int,
+        default=1,
+        help="Number of evaluation iterations per payload for statistical pass probability",
+    )
+    parser.add_argument(
         "--ci",
         action="store_true",
         help="CI mode: exit non-zero if any critical category fails",
@@ -109,9 +116,12 @@ def main() -> int:
     args = parser.parse_args()
     selected_cats = [c for c in CATEGORIES if c in args.categories] if args.categories else CATEGORIES
 
+    iterations = max(1, args.iterations)
+
     print(f"🛡️  Agentic Red-Team Harness v0.1.0")
     print(f"🎯 Target URL: {args.target_url}")
-    print(f"📋 Categories: {', '.join(selected_cats)}\n")
+    print(f"📋 Categories: {', '.join(selected_cats)}")
+    print(f"🔄 Statistical Multi-Run Iterations: {iterations}\n")
 
     summary = {}
     failures = []
@@ -130,15 +140,19 @@ def main() -> int:
         for t in tests:
             desc = t.get("description", "Unnamed test")
             query = t.get("vars", {}).get("query", "")
-            out = call_target(args.target_url, query)
-
+            
             test_ok = True
-            for a in t.get("assert", []):
-                if a.get("type") == "javascript":
-                    res = eval_assertion(out, a.get("value", ""))
-                    if res is False:
-                        test_ok = False
-                        break
+            for iter_idx in range(iterations):
+                out = call_target(args.target_url, query)
+
+                for a in t.get("assert", []):
+                    if a.get("type") == "javascript":
+                        res = eval_assertion(out, a.get("value", ""))
+                        if res is False:
+                            test_ok = False
+                            break
+                if not test_ok:
+                    break
 
             if test_ok:
                 passed += 1
@@ -150,13 +164,14 @@ def main() -> int:
                         "description": desc,
                         "query": query,
                         "response": out,
+                        "iterations": iterations,
                     }
                 )
 
         total = passed + failed
         flag = "✅ PASS" if failed == 0 else "❌ FAIL"
-        summary[cat] = {"passed": passed, "failed": failed, "total": total}
-        print(f"[{flag}] {cat:<20} {passed}/{total} passed")
+        summary[cat] = {"passed": passed, "failed": failed, "total": total, "pass_rate": round((passed / total) * 100, 1) if total > 0 else 0}
+        print(f"[{flag}] {cat:<20} {passed}/{total} passed ({summary[cat]['pass_rate']}%)")
 
     elapsed = round(time.time() - t0, 2)
     print(f"\n⏱️ Finished in {elapsed}s")

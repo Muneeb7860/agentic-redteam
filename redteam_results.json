@@ -1,12 +1,13 @@
 {
-  "timestamp": "2026-07-20T20:26:48Z",
+  "timestamp": "2026-07-20T21:14:34Z",
   "target_url": "http://localhost:8000/test",
   "elapsed_seconds": 0.0,
   "summary": {
     "action_level": {
       "passed": 5,
       "failed": 0,
-      "total": 5
+      "total": 5,
+      "pass_rate": 100.0
     }
   },
   "failures": []
