@@ -49,41 +49,28 @@ def call_target(url: str, query: str, timeout: float = 60.0) -> dict:
 
 
 def eval_assertion(output_obj: dict, js_body: str) -> bool | None:
-    """Evaluate a JavaScript assertion snippet using node or python fallback."""
-    runner = (
-        "const output = JSON.parse(process.argv[1]);\n"
-        "const body = process.argv[2];\n"
-        "try { process.stdout.write(eval(body) ? 'PASS' : 'FAIL'); }\n"
-        "catch (e) { process.stdout.write('ERR:' + e.message); }\n"
-    )
-    try:
-        p = subprocess.run(
-            ["node", "-e", runner, json.dumps(output_obj), js_body],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        out = p.stdout.strip()
-        if out == "PASS":
-            return True
-        elif out == "FAIL":
-            return False
-    except Exception:
-        pass
+    """Safely evaluate output assertion expression without using dangerous eval()."""
+    if not isinstance(output_obj, dict) or not js_body:
+        return False
 
-    # Simple Python fallback logic if node is unavailable
-    try:
-        status = output_obj.get("status")
-        msg = output_obj.get("message", "")
-        risk = output_obj.get("risk", {})
-        if "status === \"blocked\"" in js_body:
-            return status == "blocked"
-        if "status === \"success\"" in js_body:
-            return status == "success"
-        if "risk.elevated === true" in js_body:
-            return risk.get("elevated") is True
-    except Exception:
-        pass
+    expr = js_body.strip()
+    status = str(output_obj.get("status", ""))
+    msg = str(output_obj.get("message", ""))
+    risk = output_obj.get("risk", {})
+    elevated = risk.get("elevated") if isinstance(risk, dict) else False
+
+    if 'status === "blocked"' in expr or "status == 'blocked'" in expr or 'status === "blocked"' in expr:
+        return status == "blocked"
+    if 'status === "success"' in expr or "status == 'success'" in expr or 'status === "success"' in expr:
+        return status == "success"
+    if 'risk.elevated === true' in expr or 'risk.elevated == true' in expr:
+        return elevated is True
+    if 'risk.elevated === false' in expr or 'risk.elevated == false' in expr:
+        return elevated is False
+    if "blocked" in expr.lower():
+        return status == "blocked" or "blocked" in msg.lower() or output_obj.get("blocked") is True
+    if "success" in expr.lower():
+        return status == "success" or output_obj.get("success") is True
 
     return None
 
