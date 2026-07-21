@@ -161,6 +161,23 @@ def main() -> int:
         help="Apply local zero-cost payload mutations (homoglyph, base64, markdown, story)",
     )
     parser.add_argument(
+        "--use-llm-attacker",
+        action="store_true",
+        help="Enable GART (Generative Agentic Red Teaming) dynamic LLM attacker loop",
+    )
+    parser.add_argument(
+        "--attacker-provider",
+        default="openai",
+        choices=["openai", "anthropic", "gemini"],
+        help="LLM provider for GART generative attacker (openai|anthropic|gemini)",
+    )
+    parser.add_argument(
+        "--max-attack-attempts",
+        type=int,
+        default=3,
+        help="Maximum GART adversarial mutation attempts per payload",
+    )
+    parser.add_argument(
         "--output-file",
         "--output",
         dest="output_file",

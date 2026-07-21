@@ -9,6 +9,7 @@ from agentic_redteam.crypto_probes import run_crypto_probes
 from agentic_redteam.telemetry_verifier import verify_audit_proof_header
 from agentic_redteam.fingerprint_test import test_fingerprint_tarpit_exhaustion
 from agentic_redteam.mutators import apply_mutations
+from agentic_redteam.gart_attacker import GenerativeAttacker
 
 __version__ = "0.5.0"
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "verify_audit_proof_header",
     "test_fingerprint_tarpit_exhaustion",
     "apply_mutations",
+    "GenerativeAttacker",
 ]
