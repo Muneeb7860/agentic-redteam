@@ -1,4 +1,4 @@
-"""Target-agnostic command line interface for agentic-redteam with multi-turn and mutation support."""
+"""Target-agnostic command line interface for agentic-redteam v0.3.0 with crypto probes, centroid payloads, and tarpit stress-testing."""
 
 from __future__ import annotations
 
@@ -16,12 +16,20 @@ import yaml
 
 try:
     from agentic_redteam.mutators import apply_mutations
+    from agentic_redteam.crypto_probes import run_crypto_probes
+    from agentic_redteam.fingerprint_test import test_fingerprint_tarpit_exhaustion
 except ImportError:
     try:
         from mutators import apply_mutations
+        from crypto_probes import run_crypto_probes
+        from fingerprint_test import test_fingerprint_tarpit_exhaustion
     except ImportError:
         def apply_mutations(text: str, mutation_types: list[str] | None = None) -> list[str]:
             return [text]
+        def run_crypto_probes(target_url: str, timeout: float = 10.0) -> list[dict]:
+            return []
+        def test_fingerprint_tarpit_exhaustion(target_url: str, request_count: int = 5) -> dict:
+            return {}
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 PAYLOADS_DIR = PACKAGE_DIR / "payloads"
@@ -36,9 +44,11 @@ CATEGORIES = [
     "action_level",
     "clean_queries",
     "multi_turn",
+    "centroid_probes",
+    "crypto_probes",
 ]
 
-CRITICAL = {"prompt_injection", "indirect_injection", "pii_leakage", "jailbreak", "action_level", "multi_turn"}
+CRITICAL = {"prompt_injection", "indirect_injection", "pii_leakage", "jailbreak", "action_level", "multi_turn", "centroid_probes", "crypto_probes"}
 
 
 def call_target(
@@ -88,30 +98,25 @@ def eval_assertion(output_obj: dict, js_body: str) -> bool | None:
     risk = output_obj.get("risk", {})
     elevated = risk.get("elevated") if isinstance(risk, dict) else False
 
-    # Check for HTTP errors / status code blocks
     http_code = output_obj.get("http_code")
     if http_code in (422, 429, 401, 403):
         status = "blocked"
 
-    # Blocked inequality checks
     if 'status !== "blocked"' in expr or "status != 'blocked'" in expr or 'status != "blocked"' in expr:
         return status != "blocked"
     if 'status === "blocked"' in expr or "status == 'blocked'" in expr or 'status == "blocked"' in expr:
         return status == "blocked"
 
-    # Success inequality checks
     if 'status !== "success"' in expr or "status != 'success'" in expr or 'status != "success"' in expr:
         return status != "success"
     if 'status === "success"' in expr or "status == 'success'" in expr or 'status == "success"' in expr:
         return status == "success"
 
-    # Risk level checks
     if 'risk.elevated === true' in expr or 'risk.elevated == true' in expr:
         return elevated is True
     if 'risk.elevated === false' in expr or 'risk.elevated == false' in expr:
         return elevated is False
 
-    # Fallbacks for simpler keywords
     if "blocked" in expr.lower():
         return status == "blocked" or "blocked" in msg or output_obj.get("blocked") is True
     if "success" in expr.lower():
@@ -122,7 +127,7 @@ def eval_assertion(output_obj: dict, js_body: str) -> bool | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Target-agnostic AI agent security red-teaming harness"
+        description="Target-agnostic AI agent security red-teaming harness v0.3.0"
     )
     parser.add_argument(
         "categories",
@@ -169,7 +174,6 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # Handle categories list which may contain comma-separated values from CLI/Action inputs
     categories_input = []
     if args.categories:
         for cat in args.categories:
@@ -180,14 +184,13 @@ def main() -> int:
 
     selected_cats = [c for c in CATEGORIES if c in categories_input] if categories_input else CATEGORIES
 
-    # Sampling Iterations Determination
     iterations = args.iterations
     if args.deep:
         iterations = max(iterations, 10)
     elif args.ci:
         iterations = max(iterations, 2)
 
-    print(f"🛡️  Agentic Red-Team Harness v0.2.0")
+    print(f"🛡️  Agentic Red-Team Harness v0.3.0")
     print(f"🎯 Target URL: {args.target_url}")
     print(f"📋 Categories: {', '.join(selected_cats)}")
     print(f"🔄 Statistical Multi-Run Iterations: {iterations}")
@@ -198,6 +201,23 @@ def main() -> int:
     t0 = time.time()
 
     for cat in selected_cats:
+        if cat == "crypto_probes":
+            probe_results = run_crypto_probes(args.target_url)
+            passed = sum(1 for p in probe_results if p["passed"])
+            total = len(probe_results)
+            summary[cat] = {
+                "passed": passed,
+                "failed": total - passed,
+                "total": total,
+                "pass_rate": round((passed / total) * 100, 1) if total > 0 else 0,
+            }
+            flag = "✅ PASS" if passed == total else "❌ FAIL"
+            print(f"[{flag}] {cat:<20} {passed}/{total} passed ({summary[cat]['pass_rate']}%)")
+            for p in probe_results:
+                if not p["passed"]:
+                    failures.append({"category": cat, "description": p["description"], "response_code": p["response_code"]})
+            continue
+
         payload_file = PAYLOADS_DIR / f"{cat}.yaml"
         if not payload_file.exists():
             print(f"⚠️ Payload file for category '{cat}' not found at {payload_file}")
@@ -209,8 +229,7 @@ def main() -> int:
 
         for t in tests:
             desc = t.get("description", "Unnamed test")
-            
-            # Handle Stateful Multi-Turn Scenarios
+
             if "scenario" in t:
                 scenario_ok = True
                 session_id = f"redteam-sess-{int(time.time())}"
@@ -248,7 +267,6 @@ def main() -> int:
                     )
                 continue
 
-            # Handle Standard Single-Turn Payloads (with optional mutation)
             base_query = t.get("vars", {}).get("query", "")
             queries_to_test = apply_mutations(base_query) if args.mutate else [base_query]
 
@@ -295,7 +313,6 @@ def main() -> int:
     elapsed = round(time.time() - t0, 2)
     print(f"\n⏱️ Finished in {elapsed}s")
 
-    # Save findings report
     report_data = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "target_url": args.target_url,
