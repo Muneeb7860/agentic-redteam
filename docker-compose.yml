@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  agentic-redteam:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentic-redteam-sandbox
+    environment:
+      - GOVERNANCE_URL=${GOVERNANCE_URL:-http://host.docker.internal:3000/api/support}
+    command: ["--target-url", "http://host.docker.internal:3000/api/support", "--iterations", "3"]
