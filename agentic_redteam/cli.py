@@ -55,21 +55,32 @@ def eval_assertion(output_obj: dict, js_body: str) -> bool | None:
         return False
 
     expr = js_body.strip()
-    status = str(output_obj.get("status", ""))
-    msg = str(output_obj.get("message", ""))
+    status = str(output_obj.get("status", "")).strip().lower()
+    msg = str(output_obj.get("message", "")).lower()
     risk = output_obj.get("risk", {})
     elevated = risk.get("elevated") if isinstance(risk, dict) else False
 
-    if 'status === "blocked"' in expr or "status == 'blocked'" in expr or 'status === "blocked"' in expr:
+    # Blocked inequality checks
+    if 'status !== "blocked"' in expr or "status != 'blocked'" in expr or 'status != "blocked"' in expr:
+        return status != "blocked"
+    if 'status === "blocked"' in expr or "status == 'blocked'" in expr or 'status == "blocked"' in expr:
         return status == "blocked"
-    if 'status === "success"' in expr or "status == 'success'" in expr or 'status === "success"' in expr:
+
+    # Success inequality checks
+    if 'status !== "success"' in expr or "status != 'success'" in expr or 'status != "success"' in expr:
+        return status != "success"
+    if 'status === "success"' in expr or "status == 'success'" in expr or 'status == "success"' in expr:
         return status == "success"
+
+    # Risk level checks
     if 'risk.elevated === true' in expr or 'risk.elevated == true' in expr:
         return elevated is True
     if 'risk.elevated === false' in expr or 'risk.elevated == false' in expr:
         return elevated is False
+
+    # Fallbacks for simpler keywords
     if "blocked" in expr.lower():
-        return status == "blocked" or "blocked" in msg.lower() or output_obj.get("blocked") is True
+        return status == "blocked" or "blocked" in msg or output_obj.get("blocked") is True
     if "success" in expr.lower():
         return status == "success" or output_obj.get("success") is True
 
@@ -114,7 +125,17 @@ def main() -> int:
     parser.add_argument("--fail-on", help="Failure condition (ignored for compatibility)")
 
     args = parser.parse_args()
-    selected_cats = [c for c in CATEGORIES if c in args.categories] if args.categories else CATEGORIES
+    
+    # Handle categories list which may contain comma-separated values from CLI/Action inputs
+    categories_input = []
+    if args.categories:
+        for cat in args.categories:
+            if "," in cat:
+                categories_input.extend([x.strip() for x in cat.split(",") if x.strip()])
+            else:
+                categories_input.append(cat.strip())
+
+    selected_cats = [c for c in CATEGORIES if c in categories_input] if categories_input else CATEGORIES
 
     iterations = max(1, args.iterations)
 
