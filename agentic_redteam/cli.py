@@ -190,7 +190,7 @@ def main() -> int:
     elif args.ci:
         iterations = max(iterations, 2)
 
-    print(f"🛡️  Agentic Red-Team Harness v0.3.0")
+    print("🛡️  Agentic Red-Team Harness v0.5.0")
     print(f"🎯 Target URL: {args.target_url}")
     print(f"📋 Categories: {', '.join(selected_cats)}")
     print(f"🔄 Statistical Multi-Run Iterations: {iterations}")
