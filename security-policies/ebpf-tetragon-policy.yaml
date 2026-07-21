@@ -1,0 +1,24 @@
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: block-sandbox-escape-syscalls
+  namespace: kube-system
+spec:
+  kprobes:
+    - call: "sys_execve"
+      syscall: true
+      args:
+        - index: 0
+          type: "string"
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: "Prefix"
+              values:
+                - "/bin/sh"
+                - "/bin/bash"
+                - "/usr/bin/python"
+                - "/usr/bin/nc"
+                - "/usr/bin/curl"
+          matchActions:
+            - action: Sigkill # Instant SIGKILL on unauthorized process spawns

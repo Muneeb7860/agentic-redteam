@@ -6,6 +6,15 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: agentic-redteam-sandbox
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    pids_limit: 20
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
     environment:
       - GOVERNANCE_URL=${GOVERNANCE_URL:-http://host.docker.internal:3000/api/support}
     command: ["--target-url", "http://host.docker.internal:3000/api/support", "--iterations", "3"]
