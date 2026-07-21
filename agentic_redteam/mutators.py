@@ -15,13 +15,14 @@ HOMOGLYPH_SUBSTITUTIONS = {
     'E': 'Е', 'O': 'О', 'C': 'С', 'I': 'І', 'P': 'Р'
 }
 
-def mutate_homoglyphs(text: str) -> str:
-    """Replaces select Latin characters with Cyrillic/Greek homoglyphs."""
+def mutate_homoglyphs(text: str, seed: int = 42) -> str:
+    """Replaces select Latin characters with Cyrillic/Greek homoglyphs deterministically using a fixed seed."""
     if not text:
         return ""
+    rng = random.Random(seed)
     result = []
     for ch in text:
-        if ch in HOMOGLYPH_SUBSTITUTIONS and random.random() < 0.5:
+        if ch in HOMOGLYPH_SUBSTITUTIONS and rng.random() < 0.5:
             result.append(HOMOGLYPH_SUBSTITUTIONS[ch])
         else:
             result.append(ch)
