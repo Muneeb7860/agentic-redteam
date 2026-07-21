@@ -188,8 +188,19 @@ def main() -> int:
     parser.add_argument("--model", help="Target model name (ignored for compatibility)")
     parser.add_argument("--timeout", type=float, help="Request timeout (seconds)")
     parser.add_argument("--fail-on", help="Failure condition (ignored for compatibility)")
+    parser.add_argument("--swarm", action="store_true", help="Run Multi-Agent Red-Team Swarm (MARS Mode)")
 
     args = parser.parse_args()
+
+    if args.swarm:
+        from agentic_redteam.swarm import SwarmAttacker
+        swarm_attacker = SwarmAttacker(args.target_url)
+        report = swarm_attacker.run_swarm_attack()
+        with open(args.output_file, "w") as f:
+            json.dump(report, f, indent=2)
+        print(f"\n✅ MARS Swarm Campaign Complete! Pass Rate: {report['pass_rate']}%")
+        print(f"📊 Report saved to {args.output_file}")
+        sys.exit(0 if report['pass_rate'] == 100.0 else 1)
 
     categories_input = []
     if args.categories:

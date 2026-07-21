@@ -8,6 +8,7 @@ import re
 import json
 import logging
 from typing import Any, Dict, Callable
+from agentic_redteam.swarm import SwarmAttacker
 
 logger = logging.getLogger("SwishOSGuardrail")
 
