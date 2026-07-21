@@ -81,7 +81,7 @@ pip install -e .
 # Run full suite against a local governance service or API endpoint
 agentic-redteam --target-url http://localhost:8080/api/v1/govern
 
-# Run specific attack categories
+# Run specific attack categories (supports multiple positional categories)
 agentic-redteam jailbreak action_level pii_leakage --target-url http://localhost:8080/api/v1/govern
 
 # CI Enforcement Mode (fails build if critical security checks fail)
@@ -158,7 +158,7 @@ jobs:
 
 If your organization is building AI agents for production, **SwishOS** offers specialized security engagements:
 
-* **[AI Agent Security Audit ($7,500 – $12,500)](https://swishos.io/en/contact?plan=audit):** Fixed 1–2 week engagement mapping vulnerabilities to OWASP LLM 2026, delivering an executive threat report, executable test suite, and ready-to-merge guardrail PRs.
+* **[AI Agent Security Audit ($7,500 – $12,500)](https://swishos.io/en/contact?plan=audit):** 1-Week Timeboxed Diagnostic evaluating up to 3 core agentic tool workflows, delivering an executive threat report, executable test suite, and ready-to-merge guardrail PRs.
 * **[Guardrail & Red-Team Retainer ($4,500 / month)](https://swishos.io/en/contact?plan=retainer):** Continuous assurance, regression telemetry, and threat sweeps on every release.
 
 ---
