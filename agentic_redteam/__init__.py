@@ -7,7 +7,7 @@ from agentic_redteam.crypto import generate_agent_credentials, sign_payload, ver
 from agentic_redteam.policy import create_capability_token, verify_capability_token
 from agentic_redteam.crypto_probes import run_crypto_probes
 from agentic_redteam.telemetry_verifier import verify_audit_proof_header
-from agentic_redteam.fingerprint_test import test_fingerprint_tarpit_exhaustion
+from agentic_redteam.fingerprint_test import run_fingerprint_tarpit_exhaustion
 from agentic_redteam.mutators import apply_mutations
 from agentic_redteam.gart_attacker import GenerativeAttacker
 from agentic_redteam.swarm import SwarmAttacker

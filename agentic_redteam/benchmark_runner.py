@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from agentic_redteam.crypto_probes import run_crypto_probes
-from agentic_redteam.fingerprint_test import test_fingerprint_tarpit_exhaustion
+from agentic_redteam.fingerprint_test import run_fingerprint_tarpit_exhaustion
 from agentic_redteam.sdk import RedTeamSDK
 
 def run_automated_benchmark(
@@ -65,7 +65,7 @@ def run_automated_benchmark(
     crypto_total = len(crypto_res)
 
     # Subnet Tarpit Stress-Test
-    tarpit_res = test_fingerprint_tarpit_exhaustion(target_url)
+    tarpit_res = run_fingerprint_tarpit_exhaustion(target_url)
 
     elapsed = round(time.time() - t0, 2)
     overall_pass_rate = round((total_passed / total_probes * 100) if total_probes > 0 else 0, 1)
