@@ -1,1 +1,4 @@
 agentic_redteam
+dist
+security-policies
+tests

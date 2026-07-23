@@ -10,7 +10,7 @@ import urllib.request
 import urllib.error
 from typing import Any, Dict, List
 
-def test_fingerprint_tarpit_exhaustion(target_url: str, request_count: int = 5) -> Dict[str, Any]:
+def run_fingerprint_tarpit_exhaustion(target_url: str, request_count: int = 5) -> Dict[str, Any]:
     """
     Fires sequential queries with rotating Session IDs AND rotating client IP headers.
     Tests if the target server correctly tarpits entire subnet IP blocks or individual session IDs.

@@ -1,7 +1,14 @@
 {
-  "timestamp": "2026-07-21T22:08:09Z",
+  "timestamp": "2026-07-23T20:55:15Z",
   "target_url": "http://localhost:8000/test",
   "elapsed_seconds": 0.0,
+  "owasp_score": {
+    "composite": 100,
+    "grade": "A",
+    "total_passed": 5,
+    "total_tests": 5,
+    "pass_rate": 100.0
+  },
   "summary": {
     "action_level": {
       "passed": 5,
