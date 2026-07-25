@@ -56,14 +56,23 @@ def call_target(
     query: str,
     session_id: str | None = None,
     history: list[dict] | None = None,
-    timeout: float = 60.0
+    timeout: float = 60.0,
+    body_template: str | None = None
 ) -> dict:
     """Send payload query and stateful session history to the target HTTP endpoint."""
-    payload: dict = {"query": query, "message": query}
-    if session_id:
+    if body_template:
+        try:
+            rendered = body_template.replace("{payload}", query).replace("{query}", query)
+            payload = json.loads(rendered)
+        except Exception:
+            payload = {"query": query, "message": query}
+    else:
+        payload = {"query": query, "message": query}
+
+    if session_id and isinstance(payload, dict):
         payload["sessionId"] = session_id
         payload["session_id"] = session_id
-    if history:
+    if history and isinstance(payload, dict):
         payload["history"] = history
         payload["messages"] = history
 

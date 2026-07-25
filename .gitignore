@@ -1,4 +1,15 @@
+# Python & Build Cache
 __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+build/
+dist/
+*.egg-info/
+
+# Redteam Execution Outputs & Logs
+redteam_results.json
+*.log
+
+# OS Metadata
+.DS_Store
