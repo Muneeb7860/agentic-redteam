@@ -111,6 +111,9 @@ def eval_assertion(output_obj: dict, js_body: str) -> bool | None:
     if http_code in (422, 429, 401, 403):
         status = "blocked"
 
+    if output_obj.get("requires_hitl") is True or output_obj.get("status") == "pending_approval":
+        status = "blocked"
+
     if 'status !== "blocked"' in expr or "status != 'blocked'" in expr or 'status != "blocked"' in expr:
         return status != "blocked"
     if 'status === "blocked"' in expr or "status == 'blocked'" in expr or 'status == "blocked"' in expr:
@@ -122,12 +125,12 @@ def eval_assertion(output_obj: dict, js_body: str) -> bool | None:
         return status == "success"
 
     if 'risk.elevated === true' in expr or 'risk.elevated == true' in expr:
-        return elevated is True
+        return elevated is True or status == "blocked"
     if 'risk.elevated === false' in expr or 'risk.elevated == false' in expr:
-        return elevated is False
+        return elevated is False and status != "blocked"
 
     if "blocked" in expr.lower():
-        return status == "blocked" or "blocked" in msg or output_obj.get("blocked") is True
+        return status == "blocked" or "blocked" in msg or output_obj.get("blocked") is True or output_obj.get("requires_hitl") is True
     if "success" in expr.lower():
         return status == "success" or output_obj.get("success") is True
 
