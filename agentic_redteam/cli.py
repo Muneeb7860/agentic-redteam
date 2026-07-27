@@ -42,13 +42,14 @@ CATEGORIES = [
     "code_safety",
     "schema_compliance",
     "action_level",
+    "mcp_security",
     "clean_queries",
     "multi_turn",
     "centroid_probes",
     "crypto_probes",
 ]
 
-CRITICAL = {"prompt_injection", "indirect_injection", "pii_leakage", "jailbreak", "action_level", "multi_turn", "centroid_probes", "crypto_probes"}
+CRITICAL = {"prompt_injection", "indirect_injection", "pii_leakage", "jailbreak", "action_level", "mcp_security", "multi_turn", "centroid_probes", "crypto_probes"}
 
 
 def call_target(
