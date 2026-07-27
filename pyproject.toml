@@ -40,3 +40,6 @@ agentic-redteam = "agentic_redteam.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 
+[tool.setuptools.package-data]
+"agentic_redteam" = ["payloads/*.yaml", "*.yaml"]
+
