@@ -1,0 +1,37 @@
+name: Agentic Red-Team CI & Self-Eval Test Gate
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Test & Self-Eval Probe Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+          pip install -e .
+
+      - name: Run Pytest Unit & Integration Tests
+        run: |
+          python -m pytest tests/ -v --cov=agentic_redteam --cov-report=term-missing
+
+      - name: Verify CLI Probe Engine
+        run: |
+          python -m agentic_redteam.cli --version
+          python -m agentic_redteam.cli --help
