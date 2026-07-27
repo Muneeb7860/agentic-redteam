@@ -7,8 +7,12 @@ from __future__ import annotations
 import hmac
 import hashlib
 from typing import Dict, Tuple
+import os
 
-AUDIT_PROOF_SECRET = "swishos-audit-proof-signature-key-v4"
+# AUDIT FIX F13: Load from env var to stay in sync with governance server.
+# Falls back to the hardcoded value for backward compat.
+_AUDIT_PROOF_FALLBACK = "swishos-audit-proof-signature-key-v4"
+AUDIT_PROOF_SECRET = os.environ.get("SWISHOS_AUDIT_PROOF_SECRET", _AUDIT_PROOF_FALLBACK)
 
 def verify_audit_proof_header(
     headers: Dict[str, str],

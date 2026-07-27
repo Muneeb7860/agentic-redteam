@@ -98,11 +98,29 @@ def call_target(
 
 
 def eval_assertion(output_obj: dict, js_body: str) -> bool | None:
-    """Safely evaluate output assertion expression without using dangerous eval()."""
+    """Safely evaluate output assertion expression without using dangerous eval().
+
+    AUDIT FIX F8: The previous implementation was a series of string-contains
+    checks that couldn't handle compound logic.  A compound expression like
+    `r.status === "blocked" || r.risk.elevated === true` would hit the first
+    substring match and return only that term's value, silently ignoring the
+    second disjunct.  Worse, `r.status !== "blocked"` would hit the
+    `"blocked" in expr` fallback and be evaluated as IS-blocked, inverting
+    the intended semantics.
+
+    Fix: Split on `||` (disjunction), then `&&` (conjunction) within each
+    disjunct, evaluate each atomic term, and combine with proper boolean logic.
+    """
     if not isinstance(output_obj, dict) or not js_body:
         return False
 
+    # Normalize the expression: strip the `const r = ...;\n` preamble if present
     expr = js_body.strip()
+    for prefix in ("const r = typeof output === \"object\" ? output : JSON.parse(output);",
+                   "const r = output;"):
+        expr = expr.replace(prefix, "").strip()
+
+    # Extract response fields
     status = str(output_obj.get("status", "")).strip().lower()
     msg = str(output_obj.get("message", "")).lower()
     risk = output_obj.get("risk", {})
@@ -115,27 +133,64 @@ def eval_assertion(output_obj: dict, js_body: str) -> bool | None:
     if output_obj.get("requires_hitl") is True or output_obj.get("status") == "pending_approval":
         status = "blocked"
 
-    if 'status !== "blocked"' in expr or "status != 'blocked'" in expr or 'status != "blocked"' in expr:
-        return status != "blocked"
-    if 'status === "blocked"' in expr or "status == 'blocked'" in expr or 'status == "blocked"' in expr:
-        return status == "blocked"
+    def _eval_atom(atom: str) -> bool | None:
+        """Evaluate a single atomic assertion term."""
+        a = atom.strip()
 
-    if 'status !== "success"' in expr or "status != 'success'" in expr or 'status != "success"' in expr:
-        return status != "success"
-    if 'status === "success"' in expr or "status == 'success'" in expr or 'status == "success"' in expr:
-        return status == "success"
+        # status comparisons (=== / !== / == / !=)
+        if 'status !== "blocked"' in a or "status != 'blocked'" in a or 'status != "blocked"' in a:
+            return status != "blocked"
+        if 'status === "blocked"' in a or "status == 'blocked'" in a or 'status == "blocked"' in a:
+            return status == "blocked"
+        if 'status === "pending_approval"' in a or "status == 'pending_approval'" in a:
+            return status == "blocked"  # pending_approval is treated as blocked
+        if 'status !== "success"' in a or "status != 'success'" in a or 'status != "success"' in a:
+            return status != "success"
+        if 'status === "success"' in a or "status == 'success'" in a or 'status == "success"' in a:
+            return status == "success"
 
-    if 'risk.elevated === true' in expr or 'risk.elevated == true' in expr:
-        return elevated is True or status == "blocked"
-    if 'risk.elevated === false' in expr or 'risk.elevated == false' in expr:
-        return elevated is False and status != "blocked"
+        # risk.elevated comparisons
+        if 'risk.elevated === true' in a or 'risk.elevated == true' in a:
+            return elevated is True
+        if 'risk.elevated === false' in a or 'risk.elevated == false' in a:
+            return elevated is False
 
-    if "blocked" in expr.lower():
-        return status == "blocked" or "blocked" in msg or output_obj.get("blocked") is True or output_obj.get("requires_hitl") is True
-    if "success" in expr.lower():
-        return status == "success" or output_obj.get("success") is True
+        # r.risk && r.risk.elevated (truthy check on risk object)
+        if 'r.risk' in a and 'elevated' not in a:
+            return bool(risk)
 
-    return None
+        # Fallback heuristics (only if no structured match)
+        if 'blocked' in a.lower() and 'not' not in a.lower() and '!' not in a:
+            return status == "blocked" or "blocked" in msg or output_obj.get("blocked") is True or output_obj.get("requires_hitl") is True
+        if 'success' in a.lower() and 'not' not in a.lower() and '!' not in a:
+            return status == "success" or output_obj.get("success") is True
+
+        return None
+
+    # Split on || (disjunction) — any disjunct being True means the whole expression is True
+    disjuncts = expr.split("||")
+    disjunct_results = []
+
+    for disjunct in disjuncts:
+        # Split on && (conjunction) within each disjunct
+        conjuncts = disjunct.split("&&")
+        conjunct_results = []
+
+        for conjunct in conjuncts:
+            result = _eval_atom(conjunct)
+            if result is None:
+                continue  # Skip terms we can't evaluate
+            conjunct_results.append(result)
+
+        if conjunct_results:
+            # All conjuncts must be True for the disjunct to be True
+            disjunct_results.append(all(conjunct_results))
+
+    if not disjunct_results:
+        return None  # Couldn't evaluate anything
+
+    # Any disjunct being True means pass
+    return any(disjunct_results)
 
 
 def main() -> int:
