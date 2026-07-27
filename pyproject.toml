@@ -30,9 +30,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://swishos.dev"
-Repository = "https://github.com/Muneeb7860/swishos-portfolio"
-Documentation = "https://portfolio-eight-theta-fp2kdb67zc.vercel.app/en/playground"
+Homepage = "https://github.com/muneeb7860/agentic-redteam"
+Repository = "https://github.com/muneeb7860/agentic-redteam"
+Documentation = "https://github.com/muneeb7860/agentic-redteam#readme"
 
 [project.scripts]
 agentic-redteam = "agentic_redteam.cli:main"
