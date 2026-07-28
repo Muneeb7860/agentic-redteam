@@ -1,9 +1,9 @@
 # 🛡️ `agentic-redteam`: Frontier-Grade AI Agent Security Harness & Benchmark
 
-[![PyPI version](https://img.shields.io/badge/pypi-v0.5.0-blue.svg)](pyproject.toml)
+[![PyPI version](https://img.shields.io/badge/pypi-v1.0.0-blue.svg)](pyproject.toml)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/tests-8%2F8%20PASSED-emerald.svg)](tests/)
+[![Build Status](https://img.shields.io/badge/tests-33%2F33%20PASSED-emerald.svg)](tests/)
 
 `agentic-redteam` is an enterprise open-source security scanner, benchmark runner, and Generative Adversarial Red Teaming (GART) harness designed to evaluate AI agents and LLM API endpoints against OWASP LLM Top 10 vulnerabilities and Agentic Safety Incidents (ASI01-10).
 
@@ -11,9 +11,9 @@
 
 ## 🌐 Workspace Ecosystem & Navigation
 
-- 🎯 **[`agentic-redteam` Security Benchmark Harness](file:///Users/muneeb/Documents/GitHub/agentic-redteam/README.md)**: PyPI package `v0.5.0` for GART/MARS swarm AI agent red-teaming.
-- 🛡️ **[SwishOS Zero-Trust Enclave & Dashboard (`portfolio`)](file:///Users/muneeb/Documents/GitHub/portfolio/README.md)**: Next.js 16 security dashboard, WASI spend sandbox, and gVisor isolation enclave.
-- 🛒 **[Swish OS Autonomous Quick-Commerce Platform (`Swish_App`)](file:///Users/muneeb/Documents/GitHub/Swish_App/README.md)**: Multi-tenant B2B quick-commerce operating system with microservices architecture.
+- 🎯 **[`agentic-redteam` Security Benchmark Harness](https://github.com/muneeb7860/agentic-redteam)**: PyPI package `v1.0.0` for GART/MARS swarm AI agent red-teaming.
+- 🛡️ **[SwishOS Zero-Trust Enclave & Dashboard (`portfolio`)](https://github.com/muneeb7860/portfolio)**: Next.js 16 security dashboard, WASI spend sandbox, and gVisor isolation enclave.
+- 🛒 **[Swish OS Autonomous Quick-Commerce Platform (`Swish_App`)](https://github.com/muneeb7860/Swish_App)**: Multi-tenant B2B quick-commerce operating system with microservices architecture.
 
 ---
 
@@ -45,10 +45,10 @@ graph LR
 
 ### 1. Installation Options
 ```bash
-# Basic installation with standard dependencies
-pip install pyyaml cryptography
+# Install from PyPI
+pip install agentic-redteam
 
-# Install from local source repository in editable mode
+# Or install from local source repository in editable mode
 pip install -e .
 ```
 
