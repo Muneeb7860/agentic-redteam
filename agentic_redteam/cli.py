@@ -342,8 +342,70 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, help="Request timeout (seconds)")
     parser.add_argument("--fail-on", help="Failure condition (ignored for compatibility)")
     parser.add_argument("--swarm", action="store_true", help="Run Multi-Agent Red-Team Swarm (MARS Mode)")
+    parser.add_argument("--app", help="Named app from registry (instead of --target-url)")
+    parser.add_argument("--save", action="store_true", help="Save results to local audit history (~/.swishos/audit_history.db)")
+    parser.add_argument("--report", action="store_true", help="Generate a markdown audit report after the run")
+    parser.add_argument("--report-output", default="audit_report.md", help="Output path for the audit report")
+    parser.add_argument("--compare", action="store_true", help="Show before/after comparison with the previous run")
+    parser.add_argument("--history", action="store_true", help="Show audit history for the target app and exit")
+    parser.add_argument("--apps", action="store_true", help="List all registered apps and exit")
+    parser.add_argument("--register", nargs=2, metavar=("NAME", "URL"), help="Register a new app target")
+    parser.add_argument("--client-name", default="Client", help="Client name for audit report")
 
     args = parser.parse_args()
+
+    # ── Registry & history subcommands ──────────────────────────────────
+    from agentic_redteam.registry import Registry
+    from agentic_redteam.result_store import ResultStore
+
+    if args.register:
+        reg = Registry()
+        reg.add(args.register[0], args.register[1])
+        print(f"✅ Registered '{args.register[0]}' → {args.register[1]}")
+        return 0
+
+    if args.apps:
+        store = ResultStore()
+        apps = store.list_apps()
+        if not apps:
+            reg = Registry()
+            names = reg.list()
+            if names:
+                print("📋 Registered apps (no audit runs yet):")
+                for name, info in names.items():
+                    print(f"  {name:<24} {info['url']}")
+            else:
+                print("No apps registered. Use: agentic-redteam --register <name> <url>")
+            return 0
+        print("📋 Audited apps:")
+        print(f"  {'Name':<24} {'Grade':<6} {'Rate':<8} {'Runs':<6} {'Last Run'}")
+        for a in apps:
+            print(f"  {a['app_name']:<24} {a['latest_grade'] or '?':<6} {a['latest_rate']:.0f}%{'':4} {a['total_runs']:<6} {a['last_run'][:10]}")
+        return 0
+
+    # Resolve target URL from --app or --target-url
+    if args.app:
+        reg = Registry()
+        url = reg.get_url(args.app)
+        if not url:
+            print(f"❌ App '{args.app}' not found in registry. Use --register first.")
+            return 1
+        args.target_url = url
+        print(f"📎 Using registered app '{args.app}' → {url}")
+
+    app_name = args.app or args.target_url
+
+    if args.history:
+        store = ResultStore()
+        history = store.get_history(app_name)
+        if not history:
+            print(f"No audit history for '{app_name}'")
+            return 0
+        print(f"📈 Audit history for '{app_name}':")
+        print(f"  {'Run':<4} {'Date':<22} {'Grade':<6} {'Rate':<8} {'Time'}")
+        for h in history:
+            print(f"  #{h['id']:<3} {h['run_at'][:19]:<22} {h['grade']:<6} {h['pass_rate']:.0f}%{'':4} {h['elapsed_seconds']:.0f}s")
+        return 0
 
     if args.swarm:
         from agentic_redteam.swarm import SwarmAttacker
@@ -586,6 +648,59 @@ def main() -> int:
         }
         Path(args.output_file).write_text(json.dumps(report_data, indent=2))
         print(f"📊 Report saved to {args.output_file}")
+
+    # ── Post-run: save, report, compare ──────────────────────────────────
+    report_data_final = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "target_url": args.target_url,
+        "elapsed_seconds": elapsed,
+        "owasp_score": {
+            "composite": score.composite,
+            "grade": score.grade,
+            "total_passed": score.total_passed,
+            "total_tests": score.total_tests,
+            "pass_rate": score.overall_pass_rate,
+        },
+        "summary": summary,
+        "failures": failures,
+    }
+
+    if args.save:
+        store = ResultStore()
+        run_id = store.save_run(app_name, args.target_url, report_data_final)
+        print(f"💾 Results saved to audit history (run #{run_id})")
+
+    if args.compare:
+        store = ResultStore() if not args.save else store
+        diff = store.compare_last_two(app_name)
+        if diff:
+            icon = "📈" if diff["improved"] else "📉" if diff["regressed"] else "➡️"
+            print(f"\n{icon} Before/After: {diff['previous_run']['grade']} ({diff['previous_run']['pass_rate']}%) → {diff['current_run']['grade']} ({diff['current_run']['pass_rate']}%)")
+            if diff["fixed_count"]:
+                print(f"   ✅ {diff['fixed_count']} finding(s) fixed")
+            if diff["new_failure_count"]:
+                print(f"   🆕 {diff['new_failure_count']} new failure(s)")
+        else:
+            print("\n⚠️  No previous run to compare against. Run with --save next time.")
+
+    if args.report:
+        from agentic_redteam.report_generator import generate_report
+        prev = None
+        if args.compare or args.save:
+            store_for_report = ResultStore() if not args.save else store
+            history = store_for_report.get_history(app_name, limit=2)
+            if len(history) >= 2:
+                prev_run = store_for_report.get_run(history[1]["id"])
+                if prev_run:
+                    prev = prev_run["full_results"]
+        out = generate_report(
+            app_name=app_name,
+            results=report_data_final,
+            output_path=args.report_output,
+            previous_results=prev,
+            client_name=args.client_name,
+        )
+        print(f"📝 Audit report generated: {out}")
 
     if args.score_threshold is not None and score.composite < args.score_threshold:
         print(f"\n🚨 SCORE THRESHOLD FAIL: Score {score.composite} is below required threshold of {args.score_threshold}")
