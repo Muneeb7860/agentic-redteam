@@ -1,0 +1,44 @@
+<svg width="600" height="600" viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- swishos.io Electric Blue -> Cyan Gradient -->
+    <linearGradient id="avatar-grad-light" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="600" height="600" rx="40" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2" />
+
+  <!-- STRUCTURAL HEXAGON SHIELD MARK -->
+  <g transform="translate(150, 100)">
+    <!-- Outer Hexagonal Boundary -->
+    <polygon points="250,20 460,140 460,380 250,500 40,380 40,140" 
+             fill="none" stroke="url(#avatar-grad-light)" stroke-width="16" stroke-linejoin="round" />
+
+    <!-- 6 Security Vertices -->
+    <circle cx="250" cy="20" r="10" fill="#06B6D4" />
+    <circle cx="460" cy="140" r="10" fill="#06B6D4" />
+    <circle cx="460" cy="380" r="10" fill="#3B82F6" />
+    <circle cx="250" cy="500" r="10" fill="#3B82F6" />
+    <circle cx="40" cy="380" r="10" fill="#3B82F6" />
+    <circle cx="40" cy="140" r="10" fill="#06B6D4" />
+
+    <!-- Inner Shield Badge -->
+    <path d="M250 90 L140 150 V260 C140 340 190 410 250 435 C310 410 360 340 360 260 V150 L250 90 Z" 
+          fill="#0F172A" stroke="url(#avatar-grad-light)" stroke-width="10" stroke-linejoin="round" />
+
+    <!-- White Action Checkmark Slash -->
+    <path d="M200 255 L235 290 L305 210" 
+          stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- BRAND TYPOGRAPHY -->
+  <text x="400" y="660" font-family="'Sora', -apple-system, sans-serif" font-size="72" font-weight="900" letter-spacing="-0.03em" text-anchor="middle">
+    <tspan fill="#0F172A">Swish</tspan>
+    <tspan fill="#3B82F6">OS</tspan>
+  </text>
+  <text x="400" y="710" fill="#2563EB" font-family="-apple-system, sans-serif" font-size="20" font-weight="800" letter-spacing="0.12em" text-anchor="middle">
+    AI AGENT SECURITY &amp; GOVERNANCE
+  </text>
+</svg>

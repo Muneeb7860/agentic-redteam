@@ -1,9 +1,14 @@
 # 🛡️ `agentic-redteam`: Frontier-Grade AI Agent Security Harness & Benchmark
 
+![SwishOS Red-Team Banner](assets/swishos-banner-dark.png)
+
 [![PyPI version](https://img.shields.io/badge/pypi-v1.0.0-blue.svg)](pyproject.toml)
 [![Python Version](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/tests-33%2F33%20PASSED-emerald.svg)](tests/)
+
+> [!NOTE]
+> Powered by **SwishOS | AI Agent Security & Governance** (`swishos.io`). Featuring structural hexagonal isolation, Generative Adversarial Red Teaming (GART), MARS Swarm evaluation, and out-of-band cryptographic proof verification.
 
 `agentic-redteam` is an enterprise open-source security scanner, benchmark runner, and Generative Adversarial Red Teaming (GART) harness designed to evaluate AI agents and LLM API endpoints against OWASP LLM Top 10 vulnerabilities and Agentic Safety Incidents (ASI01-10).
 
