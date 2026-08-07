@@ -21,7 +21,7 @@ __all__ = [
     "verify_capability_token",
     "run_crypto_probes",
     "verify_audit_proof_header",
-    "test_fingerprint_tarpit_exhaustion",
+    "run_fingerprint_tarpit_exhaustion",
     "apply_mutations",
     "GenerativeAttacker",
     "SwarmAttacker",
