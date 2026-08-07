@@ -9,11 +9,28 @@ import hmac
 import hashlib
 import json
 import secrets
+import threading
 import time
 from typing import Any, Dict, Tuple
 
-# In-Memory Nonce Cache to prevent Replay Attacks
-_REPLAY_NONCE_CACHE: set[str] = set()
+# In-memory nonce cache to prevent replay attacks: maps "agent_id:nonce" ->
+# the timestamp it was seen at.
+#
+# SECURITY/RELIABILITY: this used to be a bare `set[str]` that entries were
+# only ever added to, never removed — unbounded growth for the life of the
+# process. A nonce can never be successfully replayed once its timestamp
+# ages past _MAX_CLOCK_SKEW_SECONDS anyway (the clock-skew check above
+# rejects it), so there's no reason to remember it past that window. Now
+# pruned opportunistically on each verify call, and guarded by a lock since
+# concurrent verification calls (e.g. from multiple request-handling
+# threads) would otherwise race on the check-then-add.
+#
+# CAVEAT: this is still an in-process cache — a multi-worker deployment
+# (e.g. multiple gunicorn workers) has one cache per worker, so a nonce can
+# be replayed once per worker process. A real production deployment needs a
+# shared store (Redis, etc.) for this to hold across workers.
+_REPLAY_NONCE_CACHE: Dict[str, int] = {}
+_REPLAY_NONCE_LOCK = threading.Lock()
 _MAX_CLOCK_SKEW_SECONDS: int = 300  # 5 Minutes
 
 def generate_agent_credentials() -> Tuple[str, str]:
@@ -84,21 +101,41 @@ def verify_payload_signature(
     
     # 2. Nonce Replay Check
     nonce_key = f"{agent_id}:{nonce}"
-    if nonce_key in _REPLAY_NONCE_CACHE:
-        return False, "Replay attack detected: Nonce already used."
-    
+    with _REPLAY_NONCE_LOCK:
+        _prune_stale_nonces(current_ts)
+        if nonce_key in _REPLAY_NONCE_CACHE:
+            return False, "Replay attack detected: Nonce already used."
+
     # 3. Signature Verification
     canonical_body = json.dumps(payload, sort_keys=True, separators=(',', ':'))
     string_to_sign = f"{agent_id}:{ts_str}:{nonce}:{canonical_body}"
-    
+
     expected_sig = hmac.new(
         secret_key.encode('utf-8'),
         string_to_sign.encode('utf-8'),
         hashlib.sha256
     ).hexdigest()
-    
+
     if not hmac.compare_digest(sig, expected_sig):
         return False, "Cryptographic signature mismatch: Unauthorized or spoofed agent payload."
-        
-    _REPLAY_NONCE_CACHE.add(nonce_key)
+
+    with _REPLAY_NONCE_LOCK:
+        # Re-check under the lock: two concurrent verifies for the same
+        # nonce could otherwise both pass the check above and both add it.
+        if nonce_key in _REPLAY_NONCE_CACHE:
+            return False, "Replay attack detected: Nonce already used."
+        _REPLAY_NONCE_CACHE[nonce_key] = current_ts
     return True, "Valid Signature"
+
+
+def _prune_stale_nonces(current_ts: int) -> None:
+    """Drop cached nonces whose timestamp has aged past the clock-skew
+    window — they could never be successfully replayed at this point
+    anyway, since the clock-skew check above would reject them first.
+    Caller must hold _REPLAY_NONCE_LOCK."""
+    stale = [
+        key for key, seen_ts in _REPLAY_NONCE_CACHE.items()
+        if current_ts - seen_ts > _MAX_CLOCK_SKEW_SECONDS
+    ]
+    for key in stale:
+        del _REPLAY_NONCE_CACHE[key]
