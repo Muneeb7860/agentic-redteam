@@ -26,9 +26,16 @@ def generate_gvisor_docker_compose_service(
             "tmpfs": [
                 "/tmp:rw,noexec,nosuid,size=64m"  # Memory-only /tmp with zero binary execution capability
             ],
+            # SECURITY: do NOT add "seccomp=unconfined" here. Docker's
+            # seccomp filter and gVisor's runsc syscall interception are
+            # independent layers -- unconfined disables the outer one for
+            # no operational benefit (runsc doesn't require it) and removes
+            # a real defense-in-depth backstop if runsc itself is ever
+            # misconfigured or has an escape (gVisor has had documented
+            # CVEs). Leave Docker's default seccomp profile in place
+            # alongside runsc, not instead of it.
             "security_opt": [
-                "no-new-privileges:true",
-                "seccomp=unconfined"  # System calls handled safely inside gVisor
+                "no-new-privileges:true"
             ],
             "deploy": {
                 "resources": {
