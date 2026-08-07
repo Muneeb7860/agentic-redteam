@@ -3,12 +3,11 @@ SwishOS Python SDK for AI Agent Frameworks (LangChain, CrewAI, AutoGen)
 Provides NFKC Unicode normalization, AST tool call bounds, and hard $5/day spend caps (ASI10).
 """
 
+import inspect
 import unicodedata
 import re
-import json
 import logging
 from typing import Any, Dict, Callable
-from agentic_redteam.swarm import SwarmAttacker
 
 logger = logging.getLogger("SwishOSGuardrail")
 
@@ -42,27 +41,57 @@ class SwishOSGuardrail:
 
     def wrap_tool(self, tool_func: Callable) -> Callable:
         """2-Line Wrapper around any Python function, LangChain Tool, or CrewAI Action."""
+        try:
+            sig = inspect.signature(tool_func)
+        except (TypeError, ValueError):
+            sig = None
+
         def secured_tool(*args, **kwargs):
             # 1. Check Spend Cap
             if self.current_spend_usd >= self.max_daily_spend_usd:
                 raise PermissionError(f"[SwishOS SPEND CAP EXCEEDED] Daily limit of ${self.max_daily_spend_usd} reached (ASI10).")
 
-            # 2. Normalize Text Arguments
-            normalized_kwargs = {}
-            for k, v in kwargs.items():
-                if isinstance(v, str):
-                    normalized_kwargs[k] = self.normalize_input(v)
-                else:
-                    normalized_kwargs[k] = v
-
-            # 3. Validate AST Tool Bounds
             tool_name = getattr(tool_func, "__name__", "tool")
-            if not self.validate_tool_args(tool_name, normalized_kwargs):
+
+            # SECURITY: this used to only ever look at **kwargs — normalize_input
+            # and validate_tool_args (the spend/AST-bounds check) never saw
+            # positional arguments at all. Any caller invoking the wrapped
+            # tool positionally (process_refund(10000.0, "reason") instead
+            # of process_refund(amount=10000.0, reason="reason")) silently
+            # skipped both the bounds check and the homoglyph/zero-width
+            # normalization — a complete bypass of this guardrail via
+            # calling convention alone, with no error and no warning. Bind
+            # args+kwargs against the real signature first so every
+            # argument, however it was passed, goes through the same checks.
+            if sig is None:
+                # Signature couldn't be introspected (e.g. some C-extension
+                # callables) — fail closed rather than silently skip
+                # validation, since we can't guarantee every argument was
+                # actually checked.
+                raise ValueError(
+                    f"[SwishOS SECURITY BLOCK] Cannot introspect signature for "
+                    f"tool '{tool_name}' — refusing to call it unchecked."
+                )
+            try:
+                bound = sig.bind(*args, **kwargs)
+            except TypeError as e:
+                raise ValueError(
+                    f"[SwishOS SECURITY BLOCK] Arguments for tool '{tool_name}' "
+                    f"don't match its signature — refusing to call it unchecked: {e}"
+                )
+
+            # 2. Normalize Text Arguments (positional AND keyword alike)
+            for name, value in list(bound.arguments.items()):
+                if isinstance(value, str):
+                    bound.arguments[name] = self.normalize_input(value)
+
+            # 3. Validate AST Tool Bounds over the full bound argument set
+            if not self.validate_tool_args(tool_name, dict(bound.arguments)):
                 raise ValueError(f"[SwishOS SECURITY BLOCK] Tool '{tool_name}' arguments violated OWASP LLM06 Excessive Agency policy.")
 
             # 4. Increment spend simulation
             self.current_spend_usd += 0.05
-            return tool_func(*args, **normalized_kwargs)
+            return tool_func(*bound.args, **bound.kwargs)
 
         return secured_tool
 
