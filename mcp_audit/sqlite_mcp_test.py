@@ -6,6 +6,7 @@ and verifies side-by-side SwishOS Enclave zero-trust mitigation.
 """
 
 import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -68,10 +69,16 @@ def run_sqlite_mcp_exploit_audit():
 
     # 3. Side-by-Side SwishOS Enclave Defense Verification
     print("\n[STEP 3] Side-by-Side SwishOS Enclave Zero-Trust Mitigation:")
+    # Demo secret must match whatever telemetry_verifier.py resolves to
+    # (SWISHOS_AUDIT_PROOF_SECRET, or its own random per-process fallback)
+    # for this mock proof to actually verify — no hardcoded literal here.
+    demo_secret = os.environ.get("SWISHOS_AUDIT_PROOF_SECRET")
+    if not demo_secret:
+        from agentic_redteam.telemetry_verifier import AUDIT_PROOF_SECRET as demo_secret
     proof_header = create_mock_audit_proof(
         rule="INDIRECT_PROMPT_INJECTION_ASI01",
         ip="127.0.0.1",
-        secret="swishos-audit-proof-signature-key-v4"
+        secret=demo_secret
     )
 
     swishos_mitigation = {

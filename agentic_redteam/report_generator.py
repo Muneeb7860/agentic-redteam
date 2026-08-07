@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .remediation import get_remediation
+
 
 def generate_report(
     app_name: str,
@@ -127,15 +129,30 @@ def generate_report(
             cat = f.get("category", "unknown")
             desc = f.get("description", "No description")
             query = f.get("query", "")
+            rem = get_remediation(cat)
             lines.append(f"### Finding {i}: {desc}")
             lines.append(f"")
             lines.append(f"- **Category:** {cat}")
+            lines.append(f"- **OWASP/ASI Control:** {rem.control}")
             lines.append(f"- **Severity:** Critical (attack payload not blocked)")
-            lines.append(f"- **Payload:**")
-            lines.append(f"  ```")
-            lines.append(f"  {query[:200]}")
-            lines.append(f"  ```")
-            lines.append(f"- **Recommendation:** Add guardrail coverage for this attack class. Re-test after fix to confirm resolution.")
+            if query:
+                lines.append(f"- **Payload:**")
+                lines.append(f"  ```")
+                lines.append(f"  {query[:200]}")
+                lines.append(f"  ```")
+            gart_details = f.get("gart_details")
+            if gart_details:
+                lines.append(f"- **Adaptive bypass (GART):** static payload was blocked, but attempt "
+                              f"{gart_details.get('attempt')} of an LLM-mutated variant got through:")
+                lines.append(f"  ```")
+                lines.append(f"  {str(gart_details.get('mutated_query', ''))[:200]}")
+                lines.append(f"  ```")
+            lines.append(f"- **Root cause:** {rem.root_cause}")
+            lines.append(f"- **Recommended fix:**")
+            for step in rem.fix_steps:
+                lines.append(f"  - {step}")
+            if rem.references:
+                lines.append(f"- **References:** {', '.join(rem.references)}")
             lines.append(f"")
     else:
         lines.append(f"## Findings")

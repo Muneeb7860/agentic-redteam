@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from agentic_redteam.scoring import OWASPScore, CategoryScore
+from agentic_redteam.remediation import get_remediation
 
 SARIF_SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
 SARIF_VERSION = "2.1.0"
@@ -48,15 +49,27 @@ def _build_rules() -> list[dict[str, Any]]:
         if rule_id in seen:
             continue
         seen.add(rule_id)
+        rem = get_remediation(cat)
+        help_markdown = (
+            f"**Root cause:** {rem.root_cause}\n\n"
+            f"**Recommended fix:**\n"
+            + "\n".join(f"- {step}" for step in rem.fix_steps)
+        )
         rules.append({
             "id": rule_id,
             "name": info["name"],
             "shortDescription": {"text": info["shortDesc"]},
             "fullDescription": {"text": f"SwishOS agentic-redteam scanner detected failures in category: {cat}"},
-            "helpUri": f"https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+            "helpUri": rem.references[0] if rem.references else "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+            "help": {
+                "text": f"{rem.root_cause} Fix: {' '.join(rem.fix_steps)}",
+                "markdown": help_markdown,
+            },
             "properties": {
                 "owaspCategory": info["id"],
                 "severity": info["level"],
+                "control": rem.control,
+                "references": rem.references,
             },
         })
     return rules
@@ -75,6 +88,7 @@ def _category_to_result(cat_score: CategoryScore, target_url: str) -> dict[str, 
     })
     rule_id = f"{info['id']}/{cat_score.category}"
     level = LEVEL_MAP.get(info["level"], "warning")
+    rem = get_remediation(cat_score.category)
 
     return {
         "ruleId": rule_id,
@@ -82,7 +96,9 @@ def _category_to_result(cat_score: CategoryScore, target_url: str) -> dict[str, 
         "message": {
             "text": (
                 f"{info['shortDesc']}: {cat_score.failed}/{cat_score.total} tests failed "
-                f"(weighted penalty: {cat_score.weighted_penalty}, pass rate: {cat_score.pass_rate}%)"
+                f"(weighted penalty: {cat_score.weighted_penalty}, pass rate: {cat_score.pass_rate}%). "
+                f"Root cause: {rem.root_cause} "
+                f"Fix: {' '.join(rem.fix_steps)}"
             )
         },
         "locations": [
@@ -102,6 +118,10 @@ def _category_to_result(cat_score: CategoryScore, target_url: str) -> dict[str, 
             "failed": cat_score.failed,
             "total": cat_score.total,
             "weightedPenalty": cat_score.weighted_penalty,
+            "control": rem.control,
+            "rootCause": rem.root_cause,
+            "fixSteps": rem.fix_steps,
+            "references": rem.references,
         },
     }
 

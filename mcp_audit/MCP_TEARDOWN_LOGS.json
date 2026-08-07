@@ -19,9 +19,9 @@
     "http_status": 422,
     "timing_latency": "50ms + jitter",
     "headers": {
-      "X-SwishOS-Audit-Proof": "3d451df6352dd8398197c2760f3840d7a16b3b744b42b8067e39ac8c2d854bdf",
-      "X-SwishOS-Audit-Timestamp": "1785011982",
-      "X-SwishOS-Audit-Nonce": "35ddfb99e31c9700"
+      "X-SwishOS-Audit-Proof": "964a388c34de2c28f3383b6be5424516d731f4d6d720ca30b10994290f60f7a8",
+      "X-SwishOS-Audit-Timestamp": "1786050333",
+      "X-SwishOS-Audit-Nonce": "1e60b8953b053500"
     },
     "mitigation_summary": "Shift-left Vector Centroid Classifier & Multi-Turn AST tracker intercepted indirect payload before execution."
   }
