@@ -10,6 +10,8 @@ import urllib.request
 import urllib.error
 from typing import Any, Dict, List, Optional
 
+from agentic_redteam.http_utils import read_capped
+
 class GenerativeAttacker:
     """
     Target-Guided Generative Adversarial Attacker LLM Loop.
@@ -89,7 +91,7 @@ class GenerativeAttacker:
         }
         req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
         with urllib.request.urlopen(req, timeout=10.0) as r:
-            res = json.loads(r.read().decode())
+            res = json.loads(read_capped(r).decode())
             return res["choices"][0]["message"]["content"].strip()
 
     def _call_anthropic_api(self, system: str, user: str) -> str:
@@ -107,7 +109,7 @@ class GenerativeAttacker:
         }
         req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers)
         with urllib.request.urlopen(req, timeout=10.0) as r:
-            res = json.loads(r.read().decode())
+            res = json.loads(read_capped(r).decode())
             return res["content"][0]["text"].strip()
 
     def _heuristic_fallback_mutation(self, prompt: str, attempt: int) -> str:

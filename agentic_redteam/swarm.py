@@ -9,6 +9,8 @@ import urllib.request
 import urllib.error
 from typing import Dict, Any, List
 
+from agentic_redteam.http_utils import read_capped, ResponseTooLargeError
+
 class SwarmAttacker:
     """
     Multi-Agent Red-Team Swarm Orchestrator.
@@ -46,13 +48,15 @@ class SwarmAttacker:
         )
         try:
             with urllib.request.urlopen(req, timeout=5) as response:
-                body = response.read().decode("utf-8")
+                body = read_capped(response).decode("utf-8")
                 proof = response.headers.get("X-SwishOS-Audit-Proof", "")
                 return {"status_code": response.status, "body": body, "proof": proof, "handover_token": f"token-{role}-ok"}
         except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8") if e.fp else ""
+            body = read_capped(e).decode("utf-8") if e.fp else ""
             proof = e.headers.get("X-SwishOS-Audit-Proof", "")
             return {"status_code": e.code, "body": body, "proof": proof, "handover_token": f"token-{role}-blocked"}
+        except ResponseTooLargeError as ex:
+            return {"status_code": 500, "body": str(ex), "proof": "", "handover_token": f"token-{role}-error"}
         except Exception as ex:
             return {"status_code": 500, "body": str(ex), "proof": "", "handover_token": f"token-{role}-error"}
 

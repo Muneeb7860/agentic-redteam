@@ -21,6 +21,7 @@ try:
     from agentic_redteam.fingerprint_test import run_fingerprint_tarpit_exhaustion
     from agentic_redteam.crypto import sign_payload
     from agentic_redteam.gart_attacker import GenerativeAttacker
+    from agentic_redteam.http_utils import read_capped, ResponseTooLargeError
 except ImportError:
     try:
         from mutators import apply_mutations
@@ -28,6 +29,7 @@ except ImportError:
         from fingerprint_test import run_fingerprint_tarpit_exhaustion
         from crypto import sign_payload
         from gart_attacker import GenerativeAttacker
+        from http_utils import read_capped, ResponseTooLargeError
     except ImportError:
         def apply_mutations(text: str, mutation_types: list[str] | None = None) -> list[str]:
             return [text]
@@ -38,6 +40,30 @@ except ImportError:
         GenerativeAttacker = None
         def sign_payload(agent_id: str, secret_key: str, payload: dict, **kwargs) -> dict:
             return {}
+
+        # SECURITY: this is a real control (bounds memory used reading a
+        # target's response), not a feature — reimplemented inline here
+        # rather than stubbed out, so standalone-script execution (no
+        # installed package, http_utils.py unimportable) doesn't silently
+        # lose the protection against a hostile/misbehaving target
+        # streaming back an unbounded response body.
+        class ResponseTooLargeError(RuntimeError):
+            pass
+
+        def read_capped(resp, max_bytes: int = 10 * 1024 * 1024) -> bytes:
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                chunk = resp.read(65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    raise ResponseTooLargeError(
+                        f"Target response exceeded {max_bytes} byte cap."
+                    )
+                chunks.append(chunk)
+            return b"".join(chunks)
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 PAYLOADS_DIR = PACKAGE_DIR / "payloads"
@@ -100,14 +126,16 @@ def call_target(
     req = urllib.request.Request(url, data=data, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read().decode())
+            return json.loads(read_capped(r).decode())
     except urllib.error.HTTPError as e:
         try:
-            res_json = json.loads(e.read().decode())
+            res_json = json.loads(read_capped(e).decode())
             res_json["http_code"] = e.code
             return res_json
         except Exception:
             return {"status": "blocked", "http_code": e.code, "message": f"HTTP {e.code}"}
+    except ResponseTooLargeError as e:
+        return {"status": "transport_error", "error": str(e)}
     except Exception as e:
         return {"status": "transport_error", "error": str(e)}
 

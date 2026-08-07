@@ -148,8 +148,20 @@ class TestCallTargetSigning(unittest.TestCase):
     def _mock_urlopen(self, captured_requests):
         def _fake_urlopen(req, timeout=None):
             captured_requests.append(req)
+            body = json.dumps({"status": "success"}).encode()
             resp = MagicMock()
-            resp.read.return_value = json.dumps({"status": "success"}).encode()
+            # call_target reads via http_utils.read_capped(), which loops
+            # calling resp.read(chunk_size) until it gets b"" (EOF) — a
+            # fixed `.return_value` ignores the size arg and never returns
+            # b"", so the loop never terminates on a real socket-like
+            # object. Emulate a real one-shot-then-EOF stream instead.
+            remaining = [body]
+            def _read(size=-1):
+                if not remaining:
+                    return b""
+                chunk = remaining.pop(0)
+                return chunk
+            resp.read.side_effect = _read
             resp.__enter__.return_value = resp
             resp.__exit__.return_value = False
             return resp

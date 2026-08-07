@@ -12,6 +12,7 @@ from typing import Dict, List, Tuple
 
 from agentic_redteam.crypto import generate_agent_credentials, sign_payload
 from agentic_redteam.telemetry_verifier import verify_audit_proof_header
+from agentic_redteam.http_utils import read_capped, ResponseTooLargeError
 
 def run_crypto_probes(target_url: str, timeout: float = 10.0) -> List[Dict[str, str | bool | int]]:
     """
@@ -88,17 +89,19 @@ def _send_probe_req(url: str, payload: dict, headers: dict, timeout: float = 10.
     req = urllib.request.Request(url, data=data, headers=req_headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            res = json.loads(r.read().decode())
+            res = json.loads(read_capped(r).decode())
             res["http_code"] = r.status
             res["headers"] = dict(r.headers)
             return res
     except urllib.error.HTTPError as e:
         try:
-            res = json.loads(e.read().decode())
+            res = json.loads(read_capped(e).decode())
             res["http_code"] = e.code
             res["headers"] = dict(e.headers)
             return res
         except Exception:
             return {"status": "blocked", "http_code": e.code, "headers": dict(e.headers)}
+    except ResponseTooLargeError as e:
+        return {"status": "transport_error", "error": str(e)}
     except Exception as e:
         return {"status": "transport_error", "error": str(e)}

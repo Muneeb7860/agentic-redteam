@@ -10,6 +10,8 @@ import urllib.request
 import urllib.error
 from typing import Any, Dict, List
 
+from agentic_redteam.http_utils import read_capped, ResponseTooLargeError
+
 def run_fingerprint_tarpit_exhaustion(target_url: str, request_count: int = 5) -> Dict[str, Any]:
     """
     Fires sequential queries with rotating Session IDs AND rotating client IP headers.
@@ -50,15 +52,17 @@ def _send_request(url: str, payload: dict, client_ip: str = "127.0.0.1") -> dict
     req = urllib.request.Request(url, data=data, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=15.0) as r:
-            res = json.loads(r.read().decode())
+            res = json.loads(read_capped(r).decode())
             res["http_code"] = r.status
             return res
     except urllib.error.HTTPError as e:
         try:
-            res = json.loads(e.read().decode())
+            res = json.loads(read_capped(e).decode())
             res["http_code"] = e.code
             return res
         except Exception:
             return {"status": "blocked", "http_code": e.code}
+    except ResponseTooLargeError as e:
+        return {"status": "transport_error", "error": str(e)}
     except Exception as e:
         return {"status": "transport_error", "error": str(e)}
