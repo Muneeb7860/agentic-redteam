@@ -7,10 +7,12 @@ from __future__ import annotations
 import hmac
 import hashlib
 import json
+import threading
 import time
 from typing import Any, Dict, List, Tuple
 
 _ROLLING_SPEND_LEDGER: Dict[str, List[Tuple[float, float]]] = {}  # agent_id -> [(timestamp, cost_usd)]
+_ROLLING_SPEND_LOCK = threading.Lock()
 _MAX_WEEKLY_SPEND_USD = 25.0
 
 def create_capability_token(
@@ -86,23 +88,43 @@ def record_and_check_rolling_spend(
 ) -> Tuple[bool, float, str]:
     """
     Tracks agent spend across a multi-day rolling window to stop 1-week slow-burn attacks.
+
+    SECURITY: this used to read the current ledger, decide pass/fail, and
+    append with no locking — two concurrent calls for the same agent_id
+    could both read the same pre-append total, both see themselves as
+    under the cap, and both get approved, letting combined spend exceed
+    max_spend_usd. A module whose stated purpose is defeating slow-burn
+    spend attacks shouldn't be bypassable just by making two calls at
+    once instead of two calls a week apart. The whole read-prune-check-
+    append sequence is now atomic under a lock.
     """
     now = time.time()
     cutoff = now - (window_days * 86400)
-    
-    if agent_id not in _ROLLING_SPEND_LEDGER:
-        _ROLLING_SPEND_LEDGER[agent_id] = []
-        
-    # Prune records older than rolling window
-    _ROLLING_SPEND_LEDGER[agent_id] = [
-        (ts, cost) for ts, cost in _ROLLING_SPEND_LEDGER[agent_id] if ts >= cutoff
-    ]
-    
-    # Calculate cumulative spend
-    current_weekly_spend = sum(cost for _, cost in _ROLLING_SPEND_LEDGER[agent_id])
-    
-    if current_weekly_spend + cost_usd > max_spend_usd:
-        return False, current_weekly_spend, f"Rolling {window_days}-day spend cap ${max_spend_usd:.2f} exceeded (Current: ${current_weekly_spend:.2f})."
-        
-    _ROLLING_SPEND_LEDGER[agent_id].append((now, cost_usd))
-    return True, current_weekly_spend + cost_usd, "Spend approved"
+
+    with _ROLLING_SPEND_LOCK:
+        # Prune records older than rolling window
+        pruned = [
+            (ts, cost) for ts, cost in _ROLLING_SPEND_LEDGER.get(agent_id, []) if ts >= cutoff
+        ]
+
+        # Calculate cumulative spend
+        current_weekly_spend = sum(cost for _, cost in pruned)
+
+        if current_weekly_spend + cost_usd > max_spend_usd:
+            if pruned:
+                _ROLLING_SPEND_LEDGER[agent_id] = pruned
+            else:
+                # Nothing left after pruning and this call didn't add
+                # anything either — drop the key instead of leaving an
+                # empty list around forever. (Note: this doesn't bound
+                # ledger size against an attacker who supplies a fresh
+                # agent_id on every call within the window — agent_id is
+                # assumed to be an authenticated identity, not
+                # attacker-controlled free text; enforce that at the
+                # caller.)
+                _ROLLING_SPEND_LEDGER.pop(agent_id, None)
+            return False, current_weekly_spend, f"Rolling {window_days}-day spend cap ${max_spend_usd:.2f} exceeded (Current: ${current_weekly_spend:.2f})."
+
+        pruned.append((now, cost_usd))
+        _ROLLING_SPEND_LEDGER[agent_id] = pruned
+        return True, current_weekly_spend + cost_usd, "Spend approved"
