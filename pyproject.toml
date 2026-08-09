@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-redteam"
+version = "1.1.0"
+description = "Open-source AI Agent Security Scanner — 114 payloads, 8 OWASP categories, SARIF export"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "SwishOS Security Team", email = "security@swishos.dev"}
+]
+keywords = ["ai-security", "red-team", "llm-benchmarking", "jailbreak-detection", "owasp", "sarif"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Topic :: Security",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "pyyaml>=6.0",
+    "cryptography>=41.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/muneeb7860/agentic-redteam"
+Repository = "https://github.com/muneeb7860/agentic-redteam"
+
+[project.scripts]
+agentic-redteam = "agentic_redteam.cli_free:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+# Without an explicit include, setuptools also picked up `tests/` and shipped it
+# as a TOP-LEVEL package, so `pip install agentic-redteam` created
+# site-packages/tests/ — a namespace collision with any other package (or the
+# user's own code) that imports `tests`.
+include = ["agentic_redteam*"]
+
+[tool.setuptools.package-data]
+"agentic_redteam" = ["payloads/*.yaml"]

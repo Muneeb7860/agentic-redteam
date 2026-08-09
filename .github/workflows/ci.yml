@@ -1,0 +1,153 @@
+name: CI
+
+# Covers the gap that could not be closed locally: pyproject declares
+# requires-python >= 3.9, but only 3.11 and 3.13 were available on the dev
+# machine. This matrix tests the declared floor for real on every push, so the
+# claim is verified rather than assumed.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest
+
+      - name: Unit and integration tests
+        run: python -m pytest tests/ -q --ignore=tests/acceptance
+
+  packaging:
+    # A wheel that builds is not a wheel that works. This installs the built
+    # artifact into a clean environment and runs the console script from
+    # OUTSIDE the source tree, which is the only way to catch missing
+    # package-data (the payload YAMLs) or a broken entry point.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir dist
+
+      - name: Assert the wheel ships payloads and nothing else top-level
+        run: |
+          python - <<'PY'
+          import glob, sys, zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          z = zipfile.ZipFile(wheel)
+          names = z.namelist()
+          top = z.read(
+              next(n for n in names if n.endswith("top_level.txt"))
+          ).decode().split()
+          payloads = [n for n in names if n.endswith(".yaml")]
+          problems = []
+          if top != ["agentic_redteam"]:
+              problems.append(f"unexpected top-level packages: {top}")
+          if len(payloads) != 8:
+              problems.append(f"expected 8 payload files, found {len(payloads)}")
+          if any(n.startswith("tests/") for n in names):
+              problems.append("tests/ is being shipped as a top-level package")
+          if problems:
+              sys.exit("wheel problems:\n  " + "\n  ".join(problems))
+          print(f"wheel ok: {top}, {len(payloads)} payloads")
+          PY
+
+      - name: Install the wheel into a clean venv and smoke-test the CLI
+        run: |
+          python -m venv /tmp/clean
+          /tmp/clean/bin/pip install dist/*.whl
+          mkdir -p /tmp/elsewhere && cd /tmp/elsewhere
+          cat > mock.py <<'PY'
+          import json
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          class H(BaseHTTPRequestHandler):
+              def _go(self):
+                  n = int(self.headers.get("Content-Length", 0) or 0)
+                  self.rfile.read(n)
+                  b = json.dumps({"status": "blocked",
+                                  "response": "I can't help with that."}).encode()
+                  self.send_response(200)
+                  self.send_header("Content-Length", str(len(b)))
+                  self.end_headers()
+                  self.wfile.write(b)
+              do_POST = do_GET = _go
+              def log_message(self, *a): pass
+          HTTPServer(("127.0.0.1", 9101), H).serve_forever()
+          PY
+          /tmp/clean/bin/python mock.py &
+          sleep 2
+          /tmp/clean/bin/agentic-redteam prompt_injection \
+            --target-url http://127.0.0.1:9101/api --iterations 1 | tee out.txt
+          grep -q "25/25 passed" out.txt || { echo "payloads not found after install"; exit 1; }
+
+      - name: Pro features must stay gated in the free package
+        run: |
+          cd /tmp/elsewhere
+          for flag in --swarm --use-llm-attacker --save --report multi_turn crypto_probes; do
+            /tmp/clean/bin/agentic-redteam "$flag" \
+              --target-url http://127.0.0.1:9101/api 2>&1 \
+              | grep -q "requires agentic-redteam-pro" \
+              || { echo "FREE package did not gate $flag"; exit 1; }
+          done
+          echo "all Pro triggers gated"
+
+  acceptance:
+    # Behaviour-vs-dialect and rubber-stamp guards. See
+    # tests/acceptance/README.md for why each script exists.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Redaction check (echo vs legitimate own contact)
+        run: python tests/acceptance/run_echo_relative.py | tee echo.txt
+
+      - name: Assert the redaction proof held
+        run: |
+          python - <<'PY'
+          import re
+          import sys
+          text = open("echo.txt").read()
+          blocks = re.split(r"={70,}", text)
+          # The positive case must score 15/15; both negatives must score 0/15.
+          positive_ok = "15/15 passed" in text
+          negatives = len(re.findall(r"pii_leakage\s+0/15 passed", text))
+          if not positive_ok:
+              sys.exit("a correctly-redacting agent no longer passes 15/15")
+          if negatives < 2:
+              sys.exit(
+                  f"expected 2 failing negative cases, saw {negatives} -- "
+                  "echo detection may have gone inert"
+              )
+          print("redaction proof held: positive 15/15, both negatives 0/15")
+          PY

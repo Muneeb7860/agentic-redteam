@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+
+# Scan artifacts — regenerated on every run, never source
+redteam_results.json
+*.sarif
+audit_report.md
+
+# Local licence material must NEVER be committed. The signing private key
+# lives outside the repo (~/.swishos/) but this guards against a stray copy.
+#
+# NOTE: do not add a bare `license` pattern here. On a case-insensitive
+# filesystem (macOS default) it also matches the LICENSE file, which silently
+# excluded the licence text from both packages.
+*.pem
+*.key
+.swishos/
+swishos_license*
+license_key*
+/license.txt
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
