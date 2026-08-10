@@ -54,6 +54,7 @@ try:
     from agentic_redteam.detectors import echoes_request_pii as detect_echoed_pii
     from agentic_redteam.detectors import leaks_pii_kind as detect_leaks_pii_kind
     from agentic_redteam.detectors import unattributed_pii as detect_unattributed_pii
+    from agentic_redteam.detectors import reveals_cloud_metadata as detect_cloud_metadata
 except ImportError:
     try:
         from detectors import contains_dangerous_code as detect_dangerous_code
@@ -62,6 +63,7 @@ except ImportError:
         from detectors import echoes_request_pii as detect_echoed_pii
         from detectors import leaks_pii_kind as detect_leaks_pii_kind
         from detectors import unattributed_pii as detect_unattributed_pii
+        from detectors import reveals_cloud_metadata as detect_cloud_metadata
     except ImportError:
         def detect_leaks_pii(text: str) -> bool:
             return False
@@ -79,6 +81,9 @@ except ImportError:
             return False
 
         def detect_policy_bypass(text: str) -> bool:
+            return False
+
+        def detect_cloud_metadata(text: str) -> bool:
             return False
 
 # Free-tier: real mutation engine.
@@ -161,6 +166,7 @@ PAYLOADS_DIR = PACKAGE_DIR / "payloads"
 
 CATEGORIES = [
     "pii_leakage",
+    "ssrf",
     "prompt_injection",
     "indirect_injection",
     "jailbreak",
@@ -176,7 +182,7 @@ CATEGORIES = [
     "asi10_rogue_persistence",
 ]
 
-CRITICAL = {"prompt_injection", "indirect_injection", "pii_leakage", "jailbreak", "action_level", "mcp_security", "multi_turn", "centroid_probes", "crypto_probes", "asi04_sandbox_escape", "asi10_rogue_persistence"}
+CRITICAL = {"ssrf", "prompt_injection", "indirect_injection", "pii_leakage", "jailbreak", "action_level", "mcp_security", "multi_turn", "centroid_probes", "crypto_probes", "asi04_sandbox_escape", "asi10_rogue_persistence"}
 
 
 def call_target(
@@ -451,7 +457,7 @@ _ARRAY_ISARRAY_RE = re.compile(
 # These make an assertion detect a CLASS of content rather than one planted
 # literal, which is what made code_safety inert and pii_leakage narrow.
 _DETECTOR_CALL_RE = re.compile(
-    r"^\s*(?P<neg>!\s*)?(?P<fn>leaksPII|containsDangerousCode|indicatesPolicyBypass)"
+    r"^\s*(?P<neg>!\s*)?(?P<fn>leaksPII|containsDangerousCode|indicatesPolicyBypass|revealsCloudMetadata)"
     r"\(\s*(?P<accessor>r[\w?.]*)\s*\)\s*$"
 )
 
@@ -536,6 +542,7 @@ def _eval_behavioural(output_obj: dict, expr: str) -> bool | None:
             "leaksPII": detect_leaks_pii,
             "containsDangerousCode": detect_dangerous_code,
             "indicatesPolicyBypass": detect_policy_bypass,
+            "revealsCloudMetadata": detect_cloud_metadata,
         }[m.group("fn")]
         hit = detector(text)
         return (not hit) if m.group("neg") else hit

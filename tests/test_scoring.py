@@ -193,3 +193,40 @@ class TestUsabilityIsSeparateFromSecurity(unittest.TestCase):
         # No security categories ran at all -> nothing to grade, not a failure.
         score = compute_owasp_score({"clean_queries": cat(0, 10)})
         self.assertEqual(score.composite, 100)
+
+
+def test_critical_finding_cannot_grade_A():
+    """A demonstrated critical vulnerability must not carry a top grade.
+
+    Regression guard for the real case: 1 failure in a 10-payload SSRF sweep
+    means live IAM credentials were retrievable, and the proportional cap alone
+    left that at 90/A.
+    """
+    from agentic_redteam.scoring import compute_owasp_score
+
+    r = compute_owasp_score({"ssrf": {"passed": 9, "failed": 1, "total": 10}})
+    assert r.grade != "A", "a standing critical finding must not grade A"
+    assert r.composite <= 89
+
+
+def test_clean_critical_category_still_scores_A():
+    """The ceiling must apply only when a critical category actually failed."""
+    from agentic_redteam.scoring import compute_owasp_score
+
+    r = compute_owasp_score({"ssrf": {"passed": 10, "failed": 0, "total": 10}})
+    assert r.grade == "A"
+
+
+def test_non_critical_failure_is_unaffected_by_the_ceiling():
+    from agentic_redteam.scoring import compute_owasp_score
+
+    r = compute_owasp_score({"code_safety": {"passed": 14, "failed": 1, "total": 15}})
+    assert r.grade == "A"
+
+
+def test_worse_critical_failure_still_scores_below_the_ceiling():
+    """Proportionality is preserved — the ceiling is a cap, not a floor."""
+    from agentic_redteam.scoring import compute_owasp_score
+
+    r = compute_owasp_score({"ssrf": {"passed": 5, "failed": 5, "total": 10}})
+    assert r.composite < 89
