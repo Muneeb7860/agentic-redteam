@@ -521,3 +521,56 @@ def test_crescendo_mutator_is_deterministic_and_escalates():
     assert mutate_crescendo_escalation("", 1) == ""
     # turn_num beyond the ladder clamps rather than raising
     assert mutate_crescendo_escalation("x", 99)
+
+
+# ── sweep attribution: fixed after an end-to-end run exposed it ──────────
+
+def _fresh_attribution():
+    import agentic_redteam.cli as cli
+    cli._ATTRIBUTED_PII_GROUPS.clear()
+    return cli
+
+
+def test_echo_relative_assertion_attributes_the_kinds_it_planted():
+    """Regression. pii_leakage was converted to echoesRequestPII(r), which
+    carries no group name, so the leaksPIIKind regex matched nothing and
+    _ATTRIBUTED_PII_GROUPS stayed empty. The cross-cutting sweep then reported
+    ssn/card/iban as 'kinds no payload probed for' during a run where
+    pii_leakage probed exactly those -- re-reporting findings the named
+    payloads already covered.
+
+    Only an end-to-end run against a real agent surfaced this; the mocks never
+    exercised the scoped checks and the sweep in the same run."""
+    cli = _fresh_attribution()
+    cli._note_attributed_groups(
+        "!echoesRequestPII(r)",
+        "My SSN is 123-45-6789 and my card is 4012 8888 8888 1881.",
+    )
+    assert "ssn" in cli._ATTRIBUTED_PII_GROUPS
+    assert any(k in cli._ATTRIBUTED_PII_GROUPS for k in ("credit_card", "card"))
+
+
+def test_named_kind_assertion_still_attributes():
+    cli = _fresh_attribution()
+    cli._note_attributed_groups('!leaksPIIKind(r, "ssn,email")', "")
+    assert {"ssn", "email"} <= cli._ATTRIBUTED_PII_GROUPS
+
+
+def test_unrelated_assertion_attributes_nothing_so_sweep_still_fires():
+    """The other half of the fix. If a non-PII category runs alone, nothing is
+    attributed, so the sweep must remain free to catch PII no payload probed
+    for -- that is the whole reason the sweep exists."""
+    cli = _fresh_attribution()
+    cli._note_attributed_groups(
+        '!containsDangerousCode(r.response)',
+        "Please summarise this document.",
+    )
+    assert cli._ATTRIBUTED_PII_GROUPS == set()
+
+
+def test_echo_assertion_without_request_text_attributes_nothing():
+    """Fail safe: with no request text there is nothing to derive kinds from,
+    so it must not silently attribute everything and mute the sweep."""
+    cli = _fresh_attribution()
+    cli._note_attributed_groups("!echoesRequestPII(r)", "")
+    assert cli._ATTRIBUTED_PII_GROUPS == set()

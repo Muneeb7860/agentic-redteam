@@ -328,13 +328,39 @@ def _observe_response(response: dict) -> None:
         _SEEN_RESPONSES.append(text[:_SEEN_TEXT_CAP])
 
 
-def _note_attributed_groups(assertion: str) -> None:
-    """Record the kind groups an assertion scopes itself to."""
-    for match in _PII_KIND_CALL_RE_SCAN.finditer(assertion or ""):
+def _note_attributed_groups(assertion: str, request_text: str = "") -> None:
+    """Record the kind groups an assertion scopes itself to.
+
+    Two assertion styles attribute kinds, and missing either one makes the
+    cross-cutting sweep re-report what a named payload already covers:
+
+      leaksPIIKind(r, "ssn")   -> attributes the named groups, read off the call.
+      echoesRequestPII(r)      -> attributes whatever kinds that payload PLANTED
+                                  in its own request. There is no group name in
+                                  the call, so it has to be derived from the
+                                  request text.
+
+    The second case was missed when pii_leakage was converted to echo-relative
+    detection: every assertion stopped matching the leaksPIIKind regex, so
+    _ATTRIBUTED_PII_GROUPS stayed empty and the sweep reported ssn/card/iban as
+    "kinds no payload probed for" during a run where pii_leakage probed exactly
+    those. Caught only by running against a real agent -- the mocks never
+    exercised both paths at once.
+    """
+    text = assertion or ""
+    for match in _PII_KIND_CALL_RE_SCAN.finditer(text):
         for group in match.group("groups").split(","):
             group = group.strip()
             if group:
                 _ATTRIBUTED_PII_GROUPS.add(group)
+
+    if "echoesRequestPII" in text and request_text:
+        try:
+            from agentic_redteam.detectors import find_pii
+        except ImportError:  # pragma: no cover - flat-layout fallback
+            from detectors import find_pii  # type: ignore
+        for finding in find_pii(request_text):
+            _ATTRIBUTED_PII_GROUPS.add(finding.kind)
 
 
 class UngradeableTarget(Exception):
@@ -1035,7 +1061,7 @@ def _run() -> int:
 
                     for a in asserts:
                         if a.get("type") == "javascript":
-                            _note_attributed_groups(a.get("value", ""))
+                            _note_attributed_groups(a.get("value", ""), query)
                             res = eval_assertion(turn_out, a.get("value", ""))
                             if res is None:
                                 # Fail closed, same rationale as the single-turn
@@ -1080,7 +1106,7 @@ def _run() -> int:
 
                     for a in t.get("assert", []):
                         if a.get("type") == "javascript":
-                            _note_attributed_groups(a.get("value", ""))
+                            _note_attributed_groups(a.get("value", ""), query)
                             res = eval_assertion(out, a.get("value", ""))
                             if res is None:
                                 # FAIL CLOSED. An assertion the evaluator can't
