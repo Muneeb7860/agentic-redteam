@@ -180,9 +180,28 @@ CATEGORIES = [
     "crypto_probes",
     "asi04_sandbox_escape",
     "asi10_rogue_persistence",
+    "tool_orchestration_abuse",
+    "autonomous_agent_drift",
+    "cross_context_retrieval",
 ]
 
-CRITICAL = {"ssrf", "prompt_injection", "indirect_injection", "pii_leakage", "jailbreak", "action_level", "mcp_security", "multi_turn", "centroid_probes", "crypto_probes", "asi04_sandbox_escape", "asi10_rogue_persistence"}
+CRITICAL = {
+    "ssrf",
+    "prompt_injection",
+    "indirect_injection",
+    "pii_leakage",
+    "jailbreak",
+    "action_level",
+    "mcp_security",
+    "multi_turn",
+    "centroid_probes",
+    "crypto_probes",
+    "asi04_sandbox_escape",
+    "asi10_rogue_persistence",
+    "tool_orchestration_abuse",
+    "autonomous_agent_drift",
+    "cross_context_retrieval",
+}
 
 
 def call_target(
@@ -974,6 +993,29 @@ def _run() -> int:
                 categories_input.append(cat.strip())
 
     selected_cats = [c for c in CATEGORIES if c in categories_input] if categories_input else CATEGORIES
+
+    # FAIL CLOSED ON AN EMPTY SELECTION.
+    #
+    # A name that matches nothing used to be filtered out silently, and a run
+    # with zero tests scored 0/0 = 100% -> Grade A, exit 0. A single typo in a
+    # CI config ("--categories jailbreek") produced a green build that had
+    # tested nothing at all. That is the same vacuous-truth fail-open removed
+    # from the assertion evaluator and the judge: a scan that measured nothing
+    # must never report a clean bill of health.
+    if categories_input:
+        unknown = [c for c in categories_input if c not in CATEGORIES]
+        if unknown:
+            print(f"\n❌ Unknown categor{'y' if len(unknown) == 1 else 'ies'}: "
+                  f"{', '.join(sorted(unknown))}", file=sys.stderr)
+            print(f"   Available: {', '.join(CATEGORIES)}", file=sys.stderr)
+            if selected_cats:
+                print(f"   Refusing to run a partial scan -- a result covering only "
+                      f"{', '.join(selected_cats)} would be read as covering everything "
+                      f"you asked for.", file=sys.stderr)
+            return 2
+    if not selected_cats:
+        print("\n❌ No categories selected; nothing would be tested.", file=sys.stderr)
+        return 2
 
     iterations = args.iterations
     if args.deep:

@@ -208,3 +208,41 @@ class TestCallTargetSigning(unittest.TestCase):
         sent_payload = json.loads(req.data.decode("utf-8"))
         ok, _ = verify_payload_signature(dict(req.header_items()), "wrong-secret", sent_payload)
         self.assertFalse(ok)
+
+
+# ── empty-selection fail-open, found by an end-to-end run ───────────────
+
+def _run_cli(args):
+    """Invoke the CLI entrypoint, returning its exit code."""
+    import agentic_redteam.cli as cli
+    import sys
+    argv = sys.argv
+    try:
+        sys.argv = ["agentic-redteam"] + args
+        return cli.main()
+    except SystemExit as e:
+        return e.code if isinstance(e.code, int) else 1
+    finally:
+        sys.argv = argv
+
+
+def test_unknown_category_does_not_score_a_on_zero_tests():
+    """Regression for a real fail-open. A name matching nothing was filtered
+    out silently and the run scored 0/0 = 100% -> Grade A, exit 0. One typo in
+    a CI config ('jailbreek') produced a green build that tested nothing.
+
+    Vacuous truth is not a pass, here as everywhere else in this package."""
+    assert _run_cli(["jailbreek", "--target-url", "http://127.0.0.1:9"]) == 2
+
+
+def test_partial_match_refuses_rather_than_silently_narrowing():
+    """One valid name and one typo used to scan only the valid one and report
+    success -- a result covering a fraction of what was asked for, presented as
+    if it covered all of it."""
+    assert _run_cli(["ssrf", "jailbreek", "--target-url", "http://127.0.0.1:9"]) == 2
+
+
+def test_valid_categories_are_not_rejected():
+    """The guard must not fire on correct input."""
+    rc = _run_cli(["clean_queries", "--target-url", "http://127.0.0.1:9"])
+    assert rc != 2, "valid category must not be treated as unknown"

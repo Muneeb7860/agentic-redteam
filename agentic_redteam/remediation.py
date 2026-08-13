@@ -283,6 +283,54 @@ REMEDIATIONS: dict[str, Remediation] = {
         ],
         references=["https://owasp.org/www-project-agentic-security-initiative/"],
     ),
+    "tool_orchestration_abuse": Remediation(
+        control="OWASP ASI01/ASI06: Tool Orchestration Abuse & Unsafe Composition (NIST AI RMF MAP 1.5)",
+        root_cause=(
+            "Tool execution pipelines allow unbounded recursive sub-agent spawns, parameter smuggling between "
+            "tool outputs and downstream tool inputs, or tool execution loops without spending or rate limits."
+        ),
+        fix_steps=[
+            "Enforce strict recursion depth limits on sub-agent spawning (e.g. max_depth=2).",
+            "Sanitize and validate outputs from read/search tools before passing them as arguments into execution tools.",
+            "Enforce per-session tool execution budgets and rate limits in a non-bypassable proxy layer.",
+        ],
+        references=[
+            "https://owasp.org/www-project-agentic-security-initiative/",
+            "https://www.nist.gov/itl/ai-risk-management-framework",
+        ],
+    ),
+    "autonomous_agent_drift": Remediation(
+        control="OWASP ASI10: Autonomous Agent Drift & Runaway Behavior (EU AI Act Art. 14 / NIST GOVERN 1.2)",
+        root_cause=(
+            "The agent lacks deterministic constraints on goal persistence, allowing prompt injections to "
+            "permanently rewrite operating mandates, disable telemetry, or spawn decoupled daemon processes."
+        ),
+        fix_steps=[
+            "Store agent system instructions and capability scopes in immutable, read-only memory.",
+            "Prohibit agent self-modification of system prompts or oversight configurations.",
+            "Implement mandatory heartbeat verification and out-of-band kill switches for active agent sessions.",
+        ],
+        references=[
+            "https://owasp.org/www-project-agentic-security-initiative/",
+            "https://artificialintelligenceact.eu/",
+        ],
+    ),
+    "cross_context_retrieval": Remediation(
+        control="OWASP LLM02: Multi-Tenant RAG & Cross-Context Leakage (MITRE ATLAS AML.T0048)",
+        root_cause=(
+            "Retrieval-Augmented Generation (RAG) lookups rely solely on embedding similarity without "
+            "enforcing strict tenant_id, role_id, and session_id ACL filtering at the vector database layer."
+        ),
+        fix_steps=[
+            "Enforce hard metadata filtering (e.g., namespace=tenant_id) at the vector search query layer, not post-retrieval.",
+            "Ensure conversational memory caches are strictly partitioned by cryptographic session tokens.",
+            "Audit vector index schema definitions and restrict index metadata enumeration endpoints.",
+        ],
+        references=[
+            "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+            "https://atlas.mitre.org/techniques/AML.T0048",
+        ],
+    ),
 }
 
 

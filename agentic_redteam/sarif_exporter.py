@@ -25,17 +25,24 @@ TOOL_URI = "https://swishos.dev"
 
 # OWASP LLM Top 10 + ASI rule definitions
 OWASP_RULES: dict[str, dict[str, str]] = {
-    "prompt_injection":   {"id": "LLM01", "name": "PromptInjection",      "shortDesc": "LLM01 Prompt Injection",            "level": "error"},
-    "indirect_injection": {"id": "LLM02", "name": "IndirectInjection",    "shortDesc": "LLM02 Indirect Prompt Injection",    "level": "error"},
-    "pii_leakage":        {"id": "LLM06", "name": "PIILeakage",           "shortDesc": "LLM06 Sensitive Information Disclosure", "level": "error"},
-    "jailbreak":          {"id": "LLM01", "name": "Jailbreak",            "shortDesc": "LLM01 Prompt Injection — Jailbreak", "level": "error"},
-    "action_level":       {"id": "LLM08", "name": "ExcessiveAgency",      "shortDesc": "LLM08 Excessive Agency",             "level": "error"},
-    "multi_turn":         {"id": "ASI01", "name": "MultiTurnASTSplitting","shortDesc": "ASI01 Multi-Turn AST Payload Splitting", "level": "error"},
-    "centroid_probes":    {"id": "LLM07", "name": "CentroidAnchor",       "shortDesc": "LLM07 System Prompt Leakage",        "level": "error"},
-    "crypto_probes":      {"id": "ASI09", "name": "CryptoProbe",          "shortDesc": "ASI09 Crypto Side-Channel Probe",    "level": "error"},
-    "code_safety":        {"id": "LLM03", "name": "CodeSafety",           "shortDesc": "LLM03 Training Data Poisoning",      "level": "warning"},
-    "schema_compliance":  {"id": "LLM10", "name": "SchemaCompliance",     "shortDesc": "LLM10 Model Denial of Service",      "level": "warning"},
-    "clean_queries":      {"id": "LLM05", "name": "CleanQueries",         "shortDesc": "LLM05 Output Handling Regression",   "level": "note"},
+    "prompt_injection":         {"id": "LLM01", "name": "PromptInjection",            "shortDesc": "LLM01 Prompt Injection",                  "level": "error"},
+    "indirect_injection":       {"id": "LLM02", "name": "IndirectInjection",          "shortDesc": "LLM02 Indirect Prompt Injection",          "level": "error"},
+    "pii_leakage":              {"id": "LLM06", "name": "PIILeakage",                 "shortDesc": "LLM06 Sensitive Information Disclosure",   "level": "error"},
+    "jailbreak":                {"id": "LLM01", "name": "Jailbreak",                  "shortDesc": "LLM01 Prompt Injection — Jailbreak",       "level": "error"},
+    "action_level":             {"id": "LLM08", "name": "ExcessiveAgency",            "shortDesc": "LLM08 Excessive Agency",                   "level": "error"},
+    "mcp_security":             {"id": "ASI06", "name": "MCPToolPoisoning",           "shortDesc": "ASI06 MCP Tool Poisoning & Unauthorized Tool Execution", "level": "error"},
+    "multi_turn":               {"id": "ASI01", "name": "MultiTurnASTSplitting",      "shortDesc": "ASI01 Multi-Turn AST Payload Splitting",   "level": "error"},
+    "centroid_probes":          {"id": "LLM07", "name": "CentroidAnchor",             "shortDesc": "LLM07 System Prompt Leakage",              "level": "error"},
+    "crypto_probes":            {"id": "ASI09", "name": "CryptoProbe",                "shortDesc": "ASI09 Crypto Side-Channel Probe",          "level": "error"},
+    "asi04_sandbox_escape":     {"id": "ASI04", "name": "SandboxEscape",              "shortDesc": "ASI04 Sandbox Escape & Proxy Exploitation", "level": "error"},
+    "asi10_rogue_persistence":  {"id": "ASI10", "name": "RogueAgentPersistence",     "shortDesc": "ASI10 Rogue Agent Persistence & Drift",    "level": "error"},
+    "ssrf":                     {"id": "LLM02", "name": "SSRF",                       "shortDesc": "LLM02 Server-Side Request Forgery & Metadata Access", "level": "error"},
+    "tool_orchestration_abuse": {"id": "ASI06", "name": "ToolOrchestrationAbuse",    "shortDesc": "ASI06 Unsafe Tool Composition & Budget Exhaustion", "level": "error"},
+    "autonomous_agent_drift":   {"id": "ASI10", "name": "AutonomousAgentDrift",       "shortDesc": "ASI10 Autonomous Agent Drift & Runaway Behavior", "level": "error"},
+    "cross_context_retrieval":  {"id": "LLM02", "name": "CrossContextRetrieval",      "shortDesc": "LLM02 Multi-Tenant Cross-Context Leakage", "level": "error"},
+    "code_safety":              {"id": "LLM03", "name": "CodeSafety",                 "shortDesc": "LLM03 Insecure Code Execution",           "level": "warning"},
+    "schema_compliance":        {"id": "LLM10", "name": "SchemaCompliance",           "shortDesc": "LLM10 Model Denial of Service / Schema",   "level": "warning"},
+    "clean_queries":            {"id": "LLM05", "name": "CleanQueries",               "shortDesc": "LLM05 Output Handling Regression",         "level": "note"},
 }
 
 LEVEL_MAP = {"error": "error", "warning": "warning", "note": "note"}
