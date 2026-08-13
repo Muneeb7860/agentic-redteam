@@ -801,8 +801,17 @@ def _run() -> int:
     )
     parser.add_argument(
         "--target-url",
+        "--target",
+        dest="target_url",
         default=os.environ.get("GOVERNANCE_URL", "http://localhost:8000/api/v1/govern"),
         help="Target HTTP endpoint URL",
+    )
+    parser.add_argument(
+        "--tools",
+        "--interactive-harness",
+        dest="interactive_harness",
+        action="store_true",
+        help="Run dynamic multi-turn interactive tool harness simulations against target",
     )
     parser.add_argument(
         "--iterations",
@@ -889,6 +898,7 @@ def _run() -> int:
     parser.add_argument(
         "--output-file",
         "--output",
+        "--output-sarif",
         dest="output_file",
         default="redteam_results.json",
         help="Output file path for test results (or SARIF report)",
@@ -1284,6 +1294,23 @@ def _run() -> int:
                 "iterations": 1,
             })
 
+    # Dynamic Tool Harness Execution
+    dynamic_trace_findings = []
+    if getattr(args, "interactive_harness", False) or args.deep:
+        print("\n🔧 Executing Interactive Dynamic Tool Harness Scenarios...")
+        try:
+            from agentic_redteam.tool_harness import run_all_scenarios
+            scenario_results = run_all_scenarios(args.target_url)
+            for sc in scenario_results:
+                status_icon = "✅ PASS" if sc["passed"] else ("⏭️ UNEXERCISED" if not sc["exercised"] else "❌ FAIL")
+                print(f"[{status_icon}] {sc['name']:<32} {len(sc['findings'])} finding(s), {sc['calls_count']} call(s)")
+                if sc["findings"]:
+                    for f in sc["findings"]:
+                        dynamic_trace_findings.append(f)
+                        print(f"          - [{f['kind']}] {f['detail']}")
+        except Exception as e:
+            print(f"⚠️ Dynamic tool harness execution error: {e}")
+
     # Compute OWASP Score
     try:
         from agentic_redteam.scoring import compute_owasp_score
@@ -1327,7 +1354,7 @@ def _run() -> int:
 
     if args.format == "sarif":
         sarif_file = args.output_file if args.output_file.endswith(".sarif") else "agentic-redteam.sarif"
-        out_path = export_sarif(score, args.target_url, sarif_file)
+        out_path = export_sarif(score, args.target_url, sarif_file, trace_findings=dynamic_trace_findings)
         print(f"📄 SARIF v2.1.0 report saved to {out_path}")
     else:
         report_data = {
@@ -1341,6 +1368,7 @@ def _run() -> int:
                 "total_tests": score.total_tests,
                 "pass_rate": score.overall_pass_rate,
             },
+            "dynamic_trace_findings": dynamic_trace_findings,
             "summary": summary,
             "failures": failures,
         }

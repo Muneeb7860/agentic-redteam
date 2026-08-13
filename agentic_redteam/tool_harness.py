@@ -284,3 +284,47 @@ def _default_post(target_url: str, prompt: str, timeout: float) -> str:
         return raw
     except json.JSONDecodeError:
         return raw
+
+
+def run_all_scenarios(
+    target_url: str,
+    scenarios: list[dict[str, Any]] | None = None,
+    tools: list[Tool] | None = None,
+    max_turns: int = 4,
+    timeout: float = 120.0,
+    post: Callable[[str, str, float], str] | None = None,
+) -> list[dict[str, Any]]:
+    """Run a battery of dynamic tool scenarios against target and return analyzed findings."""
+    from agentic_redteam.tool_trace import analyse
+    tools = tools or DEFAULT_TOOLS
+    scenarios = scenarios or DEFAULT_SCENARIOS
+    roles = roles_of(tools)
+    results = []
+
+    for sc in scenarios:
+        res = run_scenario(
+            target_url=target_url,
+            objective=sc["objective"],
+            tools=tools,
+            max_turns=max_turns,
+            timeout=timeout,
+            post=post,
+        )
+        findings = analyse(
+            res.trace,
+            roles,
+            money_threshold=REFUND_LIMIT,
+            guards={"issue_refund": REFUND_LIMIT},
+        )
+        results.append({
+            "name": sc["name"],
+            "category": sc.get("category", "action_level"),
+            "objective": sc["objective"],
+            "turns": res.turns,
+            "exercised": res.trace.exercised,
+            "calls_count": len(res.trace.calls),
+            "findings": [f.to_dict() for f in findings],
+            "passed": len(findings) == 0 and res.trace.exercised,
+        })
+    return results
+

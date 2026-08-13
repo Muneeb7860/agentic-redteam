@@ -133,18 +133,70 @@ def _category_to_result(cat_score: CategoryScore, target_url: str) -> dict[str, 
     }
 
 
+TRACE_RULES: dict[str, dict[str, str]] = {
+    "split_transaction":      {"id": "ASI01", "name": "ToolSplitTransaction",     "shortDesc": "ASI01 Incremental Limit Bypass via Split Tool Calls", "level": "error"},
+    "subagent_amplification": {"id": "ASI06", "name": "SubagentAmplification",    "shortDesc": "ASI06 Recursive Sub-Agent Spawn & Amplification",      "level": "error"},
+    "state_tampering":        {"id": "ASI10", "name": "AgentDriftStateTampering", "shortDesc": "ASI10 System Prompt & Governance State Tampering",     "level": "error"},
+    "cross_tenant_leak":      {"id": "LLM02", "name": "MultiTenantLeakage",       "shortDesc": "LLM02 Unauthorized Cross-Tenant Namespace Access",    "level": "error"},
+    "refusal_bypass":         {"id": "LLM08", "name": "SiblingToolBypass",        "shortDesc": "LLM08 Refused Action Achieved via Sibling Capability", "level": "error"},
+    "unguarded_sibling":      {"id": "LLM08", "name": "UnguardedSiblingTool",     "shortDesc": "LLM08 Uncapped Action via Unguarded Sibling Tool",     "level": "error"},
+    "path_traversal":         {"id": "LLM03", "name": "PathTraversal",            "shortDesc": "LLM03 Filesystem Scope Boundary Traversal",            "level": "error"},
+    "exfiltration_chain":     {"id": "LLM06", "name": "ExfiltrationChain",        "shortDesc": "LLM06 Multi-Tool Data Exfiltration Chain",            "level": "error"},
+}
+
+
+def _trace_finding_to_result(finding: dict[str, Any], target_url: str) -> dict[str, Any]:
+    kind = finding.get("kind", "unknown")
+    info = TRACE_RULES.get(kind, {
+        "id": "ASI06",
+        "name": kind,
+        "shortDesc": f"Agentic Sequence Violation: {kind}",
+        "level": "error",
+    })
+    rule_id = f"{info['id']}/{kind}"
+    detail = finding.get("detail", "Sequence policy violation")
+    evidence = finding.get("evidence", "")
+
+    return {
+        "ruleId": rule_id,
+        "level": LEVEL_MAP.get(info["level"], "error"),
+        "message": {
+            "text": f"{info['shortDesc']}: {detail} (Evidence: {evidence})",
+        },
+        "locations": [
+            {
+                "physicalLocation": {
+                    "artifactLocation": {
+                        "uri": target_url,
+                        "uriBaseId": "%SRCROOT%",
+                    },
+                    "region": {"startLine": 1},
+                }
+            }
+        ],
+        "properties": {
+            "findingType": "dynamic_tool_trace",
+            "kind": kind,
+            "steps": finding.get("steps", []),
+            "evidence": evidence,
+        },
+    }
+
+
 def export_sarif(
     score: OWASPScore,
     target_url: str,
     output_path: str | Path = "agentic-redteam.sarif",
+    trace_findings: list[dict[str, Any]] | None = None,
 ) -> Path:
     """
-    Export SARIF v2.1.0 report from an OWASPScore.
+    Export SARIF v2.1.0 report from an OWASPScore and optional dynamic tool trace findings.
 
     Args:
         score: Computed OWASPScore from compute_owasp_score()
         target_url: The scanned endpoint URL (used as artifact URI in SARIF)
         output_path: Destination file path for the .sarif file
+        trace_findings: Optional list of dynamic tool trace findings from tool_harness
 
     Returns:
         Resolved Path to the written SARIF file.
@@ -154,6 +206,10 @@ def export_sarif(
         result = _category_to_result(cat_score, target_url)
         if result:
             results.append(result)
+
+    if trace_findings:
+        for tf in trace_findings:
+            results.append(_trace_finding_to_result(tf, target_url))
 
     sarif_doc: dict[str, Any] = {
         "$schema": SARIF_SCHEMA,
@@ -181,6 +237,7 @@ def export_sarif(
                             "totalPassed": score.total_passed,
                             "totalFailed": score.total_failed,
                             "overallPassRate": score.overall_pass_rate,
+                            "dynamicTraceFindings": len(trace_findings or []),
                         },
                     }
                 ],
@@ -191,3 +248,4 @@ def export_sarif(
     out = Path(output_path)
     out.write_text(json.dumps(sarif_doc, indent=2))
     return out
+
