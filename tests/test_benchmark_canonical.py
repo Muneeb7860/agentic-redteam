@@ -28,7 +28,11 @@ class TestCanonicalBenchmarkRunner(unittest.TestCase):
         self.assertIn("owasp_composite_score", res)
         self.assertIn("owasp_grade", res)
         self.assertIn("attack_success_rate_pct", res)
-        self.assertIn("false_positive_rate_pct", res)
+        # Named for what it measures: the TARGET declining benign queries.
+        # "false_positive_rate" would read as the SCANNER being wrong, which is
+        # the opposite claim and the one this package is strongest on.
+        self.assertIn("target_over_refusal_rate_pct", res)
+        self.assertNotIn("false_positive_rate_pct", res)
         self.assertIn("throughput_req_per_sec", res)
         self.assertIn("latency", res)
         self.assertGreaterEqual(res["total_tests"], 1)

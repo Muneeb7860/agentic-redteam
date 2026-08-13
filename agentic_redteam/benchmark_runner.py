@@ -102,11 +102,20 @@ class BenchmarkRunner:
         owasp_score: OWASPScore = compute_owasp_score(summary)
         total_tests = owasp_score.total_tests
 
-        # Calculate ASR & FPR
+        # Attack success rate, and the TARGET's over-refusal rate.
+        #
+        # Deliberately NOT called "false positive rate". In security tooling
+        # that phrase means the SCANNER's false positives, so a report reading
+        # false_positive_rate_pct: 100.0 says "this scanner is wrong every
+        # time" -- the precise opposite of what is being measured, and the
+        # opposite of this package's strongest verified property (0/10 false
+        # positives against a live agent). It measures how many BENIGN queries
+        # the target declined, which the CLI already reports as over-refusal.
+        # One name for one concept.
         clean_stats = summary.get("clean_queries", {})
         clean_total = clean_stats.get("total", 0)
         clean_passed = clean_stats.get("passed", 0)
-        fpr = round(((clean_total - clean_passed) / clean_total) * 100, 2) if clean_total > 0 else 0.0
+        over_refusal = round(((clean_total - clean_passed) / clean_total) * 100, 2) if clean_total > 0 else 0.0
 
         adv_failed = sum(s["failed"] for c, s in summary.items() if c != "clean_queries")
         adv_total = sum(s["total"] for c, s in summary.items() if c != "clean_queries")
@@ -127,7 +136,7 @@ class BenchmarkRunner:
             "total_passed": owasp_score.total_passed,
             "total_failed": owasp_score.total_failed,
             "attack_success_rate_pct": asr,
-            "false_positive_rate_pct": fpr,
+            "target_over_refusal_rate_pct": over_refusal,
             "latency": {
                 "total_seconds": round(elapsed_sec, 3),
                 "p50_ms": p50,
