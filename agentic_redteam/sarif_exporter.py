@@ -142,6 +142,11 @@ TRACE_RULES: dict[str, dict[str, str]] = {
     "unguarded_sibling":      {"id": "LLM08", "name": "UnguardedSiblingTool",     "shortDesc": "LLM08 Uncapped Action via Unguarded Sibling Tool",     "level": "error"},
     "path_traversal":         {"id": "LLM03", "name": "PathTraversal",            "shortDesc": "LLM03 Filesystem Scope Boundary Traversal",            "level": "error"},
     "exfiltration_chain":     {"id": "LLM06", "name": "ExfiltrationChain",        "shortDesc": "LLM06 Multi-Tool Data Exfiltration Chain",            "level": "error"},
+    "tool_poisoning":         {"id": "ASI01", "name": "MCPToolPoisoning",         "shortDesc": "ASI01 MCP Tool Definition Prompt Injection",           "level": "error"},
+    "resource_exfiltration":  {"id": "ASI02", "name": "MCPResourceExfiltration",  "shortDesc": "ASI02 MCP Resource Boundary Traversal & Leakage",      "level": "error"},
+    "sampling_hijack":        {"id": "ASI06", "name": "MCPSamplingHijack",        "shortDesc": "ASI06 MCP Reverse Sampling Host Hijacking",            "level": "error"},
+    "process_crash_dos":      {"id": "ASI07", "name": "MCPProcessCrashDoS",       "shortDesc": "ASI07 MCP Process Crash on Malformed Frame (DoS)",     "level": "error"},
+    "protocol_smuggling":     {"id": "ASI06", "name": "MCPProtocolSmuggling",     "shortDesc": "ASI06 MCP Protocol Smuggling & Non-Compliance",       "level": "error"},
 }
 
 

@@ -917,11 +917,152 @@ def _run() -> int:
     parser.add_argument("--apps", action="store_true", help="List all registered apps and exit")
     parser.add_argument("--register", nargs=2, metavar=("NAME", "URL"), help="Register a new app target")
     parser.add_argument("--client-name", default="Client", help="Client name for audit report")
+    parser.add_argument("--patch", action="store_true", help="Auto-generate virtual patch defensive middleware and proxy config for detected vulnerabilities")
+    parser.add_argument("--patch-output-dir", default=".", help="Output directory for generated virtual patch files (default: current directory)")
+    parser.add_argument("--from-report", help="Generate virtual patch from a prior scan report file (JSON or SARIF)")
+    parser.add_argument("--proxy", action="store_true", help="Start the standalone virtual patch reverse proxy")
+    parser.add_argument("--proxy-port", "--port", dest="proxy_port", type=int, default=8080, help="Port for the standalone reverse proxy (default: 8080)")
+    parser.add_argument("--patch-config", help="Path to virtual_patch_config.json for reverse proxy")
+    parser.add_argument("--mcp-command", help="Audit local STDIO MCP server command (e.g. 'npx -y @modelcontextprotocol/server-sqlite /tmp/test.db')")
+    parser.add_argument("--mcp-sse-url", help="Audit remote network SSE MCP server endpoint (e.g. 'http://localhost:3000/sse')")
+    parser.add_argument("--mcp-config", help="Audit all MCP servers in a Claude Desktop / Cursor config JSON (e.g. claude_desktop_config.json)")
+    parser.add_argument("--server", dest="mcp_server_filter", help="Filter specific server name when auditing with --mcp-config")
+    parser.add_argument("--unsafe-live-fuzzing", action="store_true", help="Enable Tier 2 mutating/destructive tool call parameter fuzzing against live tools")
 
     args = parser.parse_args()
 
     global INFER_REFUSAL
     INFER_REFUSAL = bool(getattr(args, "infer_refusal", False))
+
+    # ── MCP Security Scanner Subcommand ────────────────────────────────
+    if args.mcp_command or args.mcp_sse_url or args.mcp_config:
+        from agentic_redteam.mcp.client import StdioMCPClient, SSEMCPClient
+        from agentic_redteam.mcp.fuzzer import MCPFuzzer
+        from agentic_redteam.mcp.config_parser import MCPConfigParser
+
+        print("🛡️  Agentic Red-Team — Native MCP (Model Context Protocol) Security Fuzzer")
+        print(f"🔒 Mode: {'⚠️  ACTIVE MUTATING FUZZING (UNSAFE)' if args.unsafe_live_fuzzing else 'SAFE INSPECTION & READ-ONLY PROBES'}\n")
+
+        all_reports: dict[str, Any] = {}
+        all_findings: list[dict[str, Any]] = []
+
+        if args.mcp_config:
+            print(f"📋 Auditing MCP servers from config: {args.mcp_config}")
+            conf_res = MCPConfigParser.audit_config(
+                config_path=args.mcp_config,
+                server_filter=args.mcp_server_filter,
+                unsafe_live_fuzzing=args.unsafe_live_fuzzing,
+            )
+            all_reports = conf_res.get("results", {})
+        else:
+            server_label = "stdio_server" if args.mcp_command else "sse_server"
+            client = (
+                StdioMCPClient(args.mcp_command)
+                if args.mcp_command
+                else SSEMCPClient(args.mcp_sse_url)
+            )
+            try:
+                with client:
+                    fuzzer = MCPFuzzer(client, unsafe_live_fuzzing=args.unsafe_live_fuzzing)
+                    report = fuzzer.run_full_audit()
+                    all_reports[server_label] = report
+            except Exception as e:
+                print(f"❌ Failed to connect to MCP server: {e}", file=sys.stderr)
+                return 1
+
+        # Display scorecard
+        total_servers = len(all_reports)
+        passed_servers = 0
+        print("\n" + "=" * 78)
+        print(f"{'SERVER NAME':<24} {'STATUS':<10} {'TOOLS':<7} {'RESOURCES':<10} {'PROMPTS':<8} {'FINDINGS':<9}")
+        print("=" * 78)
+
+        for srv_name, rep in all_reports.items():
+            status = "✅ PASS" if rep.get("mcp_passed", False) else "❌ FAIL"
+            if rep.get("mcp_passed", False):
+                passed_servers += 1
+            tools_cnt = rep.get("tools_count", 0)
+            res_cnt = rep.get("resources_count", 0)
+            prompts_cnt = rep.get("prompts_count", 0)
+            findings_cnt = rep.get("total_findings", 0)
+
+            print(f"{srv_name:<24} {status:<10} {tools_cnt:<7} {res_cnt:<10} {prompts_cnt:<8} {findings_cnt:<9}")
+            for f in rep.get("findings", []):
+                all_findings.append(f)
+                sev_icon = "🚨" if f["severity"] == "CRITICAL" else ("⚠️ " if f["severity"] == "HIGH" else "ℹ️ ")
+                print(f"   {sev_icon} [{f['rule_id']}] {f['title']}: {f['target']}")
+
+        print("=" * 78)
+        print(f"📊 Overall MCP Audit: {passed_servers}/{total_servers} servers passed ({len(all_findings)} total vulnerability findings)\n")
+
+        # Export SARIF / JSON if requested
+        if args.format == "sarif" or args.output_file.endswith(".sarif"):
+            from agentic_redteam.scoring import compute_owasp_score
+            from agentic_redteam.sarif_exporter import export_sarif
+            summary = {
+                "mcp_security": {
+                    "passed": sum(1 for f in all_findings if f["severity"] not in ("CRITICAL", "HIGH")),
+                    "failed": sum(1 for f in all_findings if f["severity"] in ("CRITICAL", "HIGH")),
+                    "total": max(len(all_findings), 1),
+                }
+            }
+            score = compute_owasp_score(summary)
+            sarif_path = args.output_file if args.output_file.endswith(".sarif") else "mcp-security.sarif"
+            export_sarif(score, args.mcp_command or args.mcp_sse_url or args.mcp_config or "mcp", sarif_path, trace_findings=all_findings)
+            print(f"📄 SARIF v2.1.0 report saved to {sarif_path}")
+        else:
+            Path(args.output_file).write_text(json.dumps({
+                "mcp_audit_summary": {
+                    "total_servers": total_servers,
+                    "passed_servers": passed_servers,
+                    "total_findings": len(all_findings),
+                },
+                "server_reports": all_reports,
+            }, indent=2))
+            print(f"📊 Report saved to {args.output_file}")
+
+        return 0 if (len(all_findings) == 0 or all(f['severity'] == 'MEDIUM' for f in all_findings)) else 1
+
+    # ── Virtual Patching Subcommands ────────────────────────────────────
+    if args.from_report:
+        from agentic_redteam.patching.engine import VirtualPatchEngine, PatchConfig
+        rep_path = Path(args.from_report)
+        if not rep_path.exists():
+            print(f"❌ Error: report file not found: {rep_path}", file=sys.stderr)
+            return 1
+        try:
+            report_data = json.loads(rep_path.read_text())
+        except Exception as e:
+            print(f"❌ Failed to parse report JSON: {e}", file=sys.stderr)
+            return 1
+
+        summary = report_data.get("summary", {})
+        trace_findings = report_data.get("dynamic_trace_findings", [])
+        patch_config = VirtualPatchEngine.generate_patch_config(summary, trace_findings=trace_findings)
+
+        out_dir = Path(args.patch_output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        cfg_file = out_dir / "virtual_patch_config.json"
+        mw_file = out_dir / "virtual_patch_middleware.py"
+        cfg_file.write_text(patch_config.to_json(indent=2))
+        mw_file.write_text(VirtualPatchEngine.emit_asgi_middleware_code(patch_config))
+
+        print(f"🛡️  Virtual Patch generated from report '{rep_path.name}':")
+        print(f"   ⚙️  Config: {cfg_file}")
+        print(f"   📦 ASGI Middleware: {mw_file}")
+        print(f"   🛡️  Active Rules: {len(patch_config.rules)} rules ({', '.join(patch_config.active_categories) or 'baseline'})")
+        return 0
+
+    if args.proxy:
+        from agentic_redteam.patching.engine import PatchConfig
+        from agentic_redteam.patching.reverse_proxy import run_proxy
+        cfg = None
+        if getattr(args, "patch_config", None) and Path(args.patch_config).exists():
+            cfg_data = json.loads(Path(args.patch_config).read_text())
+            cfg = PatchConfig(**cfg_data)
+        print(f"🛡️  Launching Agentic Red-Team Reverse Proxy on port {args.proxy_port} -> {args.target_url}...")
+        run_proxy(target_url=args.target_url, port=args.proxy_port, config=cfg, block=True)
+        return 0
 
     # ── Registry & history subcommands ──────────────────────────────────
     # Pro-only modules. Imported lazily so the free package (which does not
@@ -1427,6 +1568,20 @@ def _run() -> int:
             client_name=args.client_name,
         )
         print(f"📝 Audit report generated: {out}")
+
+    if args.patch:
+        from agentic_redteam.patching.engine import VirtualPatchEngine
+        patch_config = VirtualPatchEngine.generate_patch_config(score, trace_findings=dynamic_trace_findings)
+        out_dir = Path(args.patch_output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        cfg_path = out_dir / "virtual_patch_config.json"
+        code_path = out_dir / "virtual_patch_middleware.py"
+        cfg_path.write_text(patch_config.to_json(indent=2))
+        code_path.write_text(VirtualPatchEngine.emit_asgi_middleware_code(patch_config))
+        print(f"\n🛡️  Virtual Patch generated successfully!")
+        print(f"   ⚙️  Config: {cfg_path}")
+        print(f"   📦 ASGI Middleware: {code_path}")
+        print(f"   🚀 Deploy reverse proxy: agentic-redteam --proxy --target-url {args.target_url} --proxy-port 8080 --patch-config {cfg_path}")
 
     if args.score_threshold is not None and score.composite < args.score_threshold:
         print(f"\n🚨 SCORE THRESHOLD FAIL: Score {score.composite} is below required threshold of {args.score_threshold}")
