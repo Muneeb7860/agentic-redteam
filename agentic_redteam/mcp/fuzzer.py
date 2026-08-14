@@ -330,19 +330,36 @@ class MCPFuzzer:
         resources: List[Dict[str, Any]],
         templates: List[Dict[str, Any]],
     ) -> None:
-        # Fuzz static and dynamic resource URIs
-        test_uris = list(_SENSITIVE_RESOURCE_PATHS)
+        # Fuzz static and dynamic resource URIs.
+        # Deduped: a server that declares file:///etc/passwd as its own resource
+        # was previously probed for it twice, producing two identical findings.
+        seen_uris: set[str] = set()
+        test_uris: list[str] = []
+
+        def _queue(u: str) -> None:
+            if u and u not in seen_uris:
+                seen_uris.add(u)
+                test_uris.append(u)
+
+        for u in _SENSITIVE_RESOURCE_PATHS:
+            _queue(u)
         for r in resources:
-            uri = r.get("uri", "")
-            if uri:
-                test_uris.append(uri)
+            _queue(r.get("uri", ""))
 
         for tmpl in templates:
             uri_template = tmpl.get("uriTemplate", "")
             if "{" in uri_template:
                 # Substitute traversal path into template
-                test_uris.append(re.sub(r"\{.*?\}", "../../../../etc/passwd", uri_template))
-                test_uris.append(re.sub(r"\{.*?\}", ".env", uri_template))
+                _queue(re.sub(r"\{.*?\}", "../../../../etc/passwd", uri_template))
+                _queue(re.sub(r"\{.*?\}", ".env", uri_template))
+
+        # One defect, one finding. Emitting per probed URI reported a single
+        # underlying weakness -- resources/read serves any path it is given --
+        # as eight CRITICAL findings, which inflates the count and buries the
+        # actual issue. Same one-defect-many-findings shape already corrected
+        # in the PII sweep, where one leaked email was reported 15 times under
+        # payload names that had leaked nothing.
+        leaked: list[tuple[str, str]] = []
 
         for uri in test_uris:
             try:
@@ -366,16 +383,24 @@ class MCPFuzzer:
 
                     # Check if sensitive file contents leaked
                     if any(s in text_data for s in _SENSITIVE_SNIPPETS):
-                        self.findings.append(MCPFinding(
-                            kind="resource_exfiltration",
-                            rule_id="ASI02/MCPResourceExfiltration",
-                            severity="CRITICAL",
-                            target=f"resource:{uri}",
-                            title="Sensitive Resource Exfiltration Allowed via resources/read",
-                            detail=f"Server returned unredacted sensitive configuration/system files when reading resource '{uri}'.",
-                            evidence=text_data[:200],
-                            remediation="Implement URI access-control checks and restrict file read roots to authorized directories only.",
-                        ))
+                        leaked.append((uri, text_data[:120]))
+                        break  # one record per URI; the defect is the server, not the file
+
+        if leaked:
+            uris = [u for u, _ in leaked]
+            self.findings.append(MCPFinding(
+                kind="resource_exfiltration",
+                rule_id="ASI02/MCPResourceExfiltration",
+                severity="CRITICAL",
+                target=f"resources/read ({len(uris)} path{'s' if len(uris) != 1 else ''})",
+                title="Sensitive Resource Exfiltration Allowed via resources/read",
+                detail=(f"resources/read returned unredacted sensitive file contents for "
+                        f"{len(uris)} probed path(s): {', '.join(uris[:6])}"
+                        f"{' …' if len(uris) > 6 else ''}. The weakness is the missing "
+                        f"access control on resources/read, not any individual file."),
+                evidence=" | ".join(f"{u}: {snippet}" for u, snippet in leaked[:3]),
+                remediation="Implement URI access-control checks and restrict file read roots to authorized directories only.",
+            ))
 
     def _audit_prompts(self, prompts: List[Dict[str, Any]]) -> None:
         for p in prompts:
