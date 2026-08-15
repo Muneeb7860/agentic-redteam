@@ -9,6 +9,8 @@ Reference: https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html
 
 from __future__ import annotations
 
+from agentic_redteam import __version__
+
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,7 +22,10 @@ from agentic_redteam.remediation import get_remediation
 SARIF_SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
 SARIF_VERSION = "2.1.0"
 TOOL_NAME = "agentic-redteam"
-TOOL_VERSION = "1.0.0"
+# Derived, never literal: a SARIF file stamped with the wrong tool version
+# misattributes every finding it carries in GitHub Code Scanning. This was
+# literal '1.0.0' while the package was 1.1.0.
+TOOL_VERSION = __version__
 TOOL_URI = "https://swishos.dev"
 
 # OWASP LLM Top 10 + ASI rule definitions

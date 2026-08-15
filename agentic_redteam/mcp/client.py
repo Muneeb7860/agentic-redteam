@@ -11,6 +11,8 @@ Implements:
 
 from __future__ import annotations
 
+from agentic_redteam import __version__
+
 import json
 import os
 import queue
@@ -89,7 +91,10 @@ class MCPClient(ABC):
             "capabilities": client_capabilities,
             "clientInfo": {
                 "name": "agentic-redteam-fuzzer",
-                "version": "1.0.0",
+                # Our own identity, sent to every server we audit and recorded
+                # in its logs. A literal here means the operator of an audited
+                # server sees the wrong scanner version forever.
+                "version": __version__,
             },
         }
 

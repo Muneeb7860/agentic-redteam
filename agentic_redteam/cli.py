@@ -15,6 +15,8 @@ from pathlib import Path
 
 import yaml
 
+from agentic_redteam import __version__
+
 # ── Optional imports ────────────────────────────────────────────────────
 # IMPORTANT: each import is isolated in its own try/except. They were
 # previously grouped in a single try block, which meant one missing module
@@ -892,7 +894,7 @@ def _run() -> int:
     parser.add_argument(
         "--version",
         action="version",
-        version="agentic-redteam 1.0.0",
+        version=f"agentic-redteam {__version__}",
         help="Show program version and exit",
     )
     parser.add_argument(
@@ -1192,7 +1194,7 @@ def _run() -> int:
                 f"heuristic variable-splitting mutation instead of a real LLM attacker.\n"
             )
 
-    print("🛡️  Agentic Red-Team Harness v1.0.0")
+    print(f"🛡️  Agentic Red-Team Harness v{__version__}")
     print(f"🎯 Target URL: {args.target_url}")
     print(f"📋 Categories: {', '.join(selected_cats)}")
     print(f"🔄 Statistical Multi-Run Iterations: {iterations}")
