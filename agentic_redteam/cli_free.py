@@ -21,12 +21,18 @@ PRO_FLAGS = {
     "use_llm_attacker", "swarm", "history", "apps",
 }
 
+# Deliberately does NOT print a `pip install agentic-redteam-pro` line.
+# Pro is not on PyPI and will not be: a wheel is a zip of .py source, so
+# publishing it there would hand over the paid tier and the license gate it
+# ships with. Access is issued with the license. Printing an install command
+# that 404s fails the one user who was motivated enough to try.
 UPGRADE_MSG = """
 ⚡ This feature requires agentic-redteam-pro.
 
    Get a license: https://swishos.io/pricing
-   Install:       pip install agentic-redteam-pro
    Docs:          https://swishos.io/developers
+
+   Pro is distributed with your license, not from PyPI.
 """
 
 

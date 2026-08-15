@@ -84,3 +84,17 @@ def test_no_literal_previous_version_remains_in_source():
                 if re.search(r'["\']v?\d+\.\d+\.\d+["\']', line):
                     offenders.append(f"{os.path.basename(path)}:{i}: {line.strip()}")
     assert not offenders, "hardcoded version literals found:\n" + "\n".join(offenders)
+
+
+def test_upgrade_message_advertises_no_dead_install_command():
+    """The free tier must not print a command that 404s.
+
+    `pip install agentic-redteam-pro` shipped in 1.0.0 and there is no such
+    package -- Pro is private by design, because a wheel is a zip of .py source
+    and publishing it would hand over the paid tier along with its own license
+    gate. The upgrade prompt is the single point where a motivated user acts on
+    the funnel; sending them to a 404 there is worse than not gating at all.
+    """
+    from agentic_redteam.cli_free import UPGRADE_MSG
+    assert "pip install agentic-redteam-pro" not in UPGRADE_MSG
+    assert "swishos.io/pricing" in UPGRADE_MSG
