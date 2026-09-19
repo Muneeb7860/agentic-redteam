@@ -65,8 +65,8 @@ jobs:
           problems = []
           if top != ["agentic_redteam"]:
               problems.append(f"unexpected top-level packages: {top}")
-          if len(payloads) != 8:
-              problems.append(f"expected 8 payload files, found {len(payloads)}")
+          if len(payloads) != 12:
+              problems.append(f"expected 12 payload files, found {len(payloads)}")
           if any(n.startswith("tests/") for n in names):
               problems.append("tests/ is being shipped as a top-level package")
           if problems:

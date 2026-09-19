@@ -33,3 +33,4 @@ license_key*
 *.swp
 .idea/
 .vscode/
+*.bak

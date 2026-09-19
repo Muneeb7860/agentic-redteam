@@ -52,6 +52,47 @@ OWASP_RULES: dict[str, dict[str, str]] = {
 
 LEVEL_MAP = {"error": "error", "warning": "warning", "note": "note"}
 
+# Compliance-framework mapping, keyed by the OWASP/ASI rule id each category
+# already carries. Surfaced in every rule's `properties` so a SARIF consumer
+# (or a CISO reading the report) sees the governing control alongside the
+# finding. Enterprise buyers ask for these two by name; the mapping is
+# deliberately conservative — a category maps to a framework function only
+# where the link is defensible, not aspirationally.
+#
+# NIST AI RMF: the four core functions (GOVERN, MAP, MEASURE, MANAGE) plus the
+#   trustworthiness characteristic most directly at stake ("Secure & Resilient",
+#   "Privacy-Enhanced", etc.). Ref: NIST AI 100-1 (Jan 2023).
+# EU AI Act: the article most directly engaged for a high-risk AI system.
+#   Art.15 = accuracy, robustness & cybersecurity; Art.10 = data governance.
+#   Ref: Regulation (EU) 2024/1689.
+COMPLIANCE_MAP: dict[str, dict[str, str]] = {
+    # OWASP/ASI id -> framework references
+    "LLM01": {"nist_ai_rmf": "MANAGE-2.2 / MEASURE-2.7 (Secure & Resilient)", "eu_ai_act": "Art.15 (Robustness & Cybersecurity)"},
+    "LLM02": {"nist_ai_rmf": "MEASURE-2.7 (Secure & Resilient)",              "eu_ai_act": "Art.15 (Robustness & Cybersecurity)"},
+    "LLM03": {"nist_ai_rmf": "MANAGE-2.2 (Secure & Resilient)",              "eu_ai_act": "Art.15 (Robustness & Cybersecurity)"},
+    "LLM05": {"nist_ai_rmf": "MEASURE-2.3 (Valid & Reliable)",               "eu_ai_act": "Art.15 (Accuracy)"},
+    "LLM06": {"nist_ai_rmf": "MEASURE-2.10 (Privacy-Enhanced)",              "eu_ai_act": "Art.10 (Data Governance)"},
+    "LLM07": {"nist_ai_rmf": "MEASURE-2.7 (Secure & Resilient)",             "eu_ai_act": "Art.15 (Cybersecurity)"},
+    "LLM08": {"nist_ai_rmf": "GOVERN-1.1 / MANAGE-2.2 (Accountable)",        "eu_ai_act": "Art.14 (Human Oversight)"},
+    "LLM10": {"nist_ai_rmf": "MEASURE-2.6 (Safe)",                           "eu_ai_act": "Art.15 (Robustness)"},
+    "ASI01": {"nist_ai_rmf": "MEASURE-2.7 (Secure & Resilient)",             "eu_ai_act": "Art.15 (Cybersecurity)"},
+    "ASI02": {"nist_ai_rmf": "MEASURE-2.10 (Privacy-Enhanced)",              "eu_ai_act": "Art.10 (Data Governance)"},
+    "ASI04": {"nist_ai_rmf": "MANAGE-2.2 (Secure & Resilient)",              "eu_ai_act": "Art.15 (Cybersecurity)"},
+    "ASI06": {"nist_ai_rmf": "GOVERN-1.1 / MANAGE-2.2 (Accountable)",        "eu_ai_act": "Art.14 (Human Oversight)"},
+    "ASI07": {"nist_ai_rmf": "MEASURE-2.6 (Safe)",                           "eu_ai_act": "Art.15 (Robustness)"},
+    "ASI09": {"nist_ai_rmf": "MEASURE-2.7 (Secure & Resilient)",             "eu_ai_act": "Art.15 (Cybersecurity)"},
+    "ASI10": {"nist_ai_rmf": "GOVERN-1.1 (Accountable) / MANAGE-2.2",        "eu_ai_act": "Art.14 (Human Oversight)"},
+}
+
+# Fallback so a category whose id is not yet mapped still emits well-formed,
+# clearly-labelled properties rather than omitting the keys entirely.
+_COMPLIANCE_UNMAPPED = {"nist_ai_rmf": "unmapped", "eu_ai_act": "unmapped"}
+
+
+def compliance_for(owasp_id: str) -> dict[str, str]:
+    """Framework references for an OWASP/ASI rule id. Never raises."""
+    return COMPLIANCE_MAP.get(owasp_id, _COMPLIANCE_UNMAPPED)
+
 
 def _build_rules() -> list[dict[str, Any]]:
     seen: set[str] = set()
@@ -82,6 +123,17 @@ def _build_rules() -> list[dict[str, Any]]:
                 "severity": info["level"],
                 "control": rem.control,
                 "references": rem.references,
+                # Compliance-framework context. `tags` is the SARIF-standard
+                # array GitHub Code Scanning renders as filterable labels;
+                # the structured keys are for programmatic consumers.
+                "nistAiRmf": compliance_for(info["id"])["nist_ai_rmf"],
+                "euAiAct": compliance_for(info["id"])["eu_ai_act"],
+                "tags": [
+                    "security",
+                    f"owasp-{info['id'].lower()}",
+                    f"nist-ai-rmf",
+                    f"eu-ai-act",
+                ],
             },
         })
     return rules
@@ -134,6 +186,8 @@ def _category_to_result(cat_score: CategoryScore, target_url: str) -> dict[str, 
             "rootCause": rem.root_cause,
             "fixSteps": rem.fix_steps,
             "references": rem.references,
+            "nistAiRmf": compliance_for(info["id"])["nist_ai_rmf"],
+            "euAiAct": compliance_for(info["id"])["eu_ai_act"],
         },
     }
 

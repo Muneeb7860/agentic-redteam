@@ -136,7 +136,8 @@ class StdioMCPClient(MCPClient):
         super().__init__(timeout=timeout)
         self.raw_command = command
         self.cwd = cwd or os.getcwd()
-        self.env = env or os.environ.copy()
+        self.env = env.copy() if env is not None else os.environ.copy()
+        self.env.setdefault("PYTHONUNBUFFERED", "1")
         self.process: Optional[subprocess.Popen] = None
         self._stdout_thread: Optional[threading.Thread] = None
         self._stderr_thread: Optional[threading.Thread] = None

@@ -1,0 +1,73 @@
+name: Publish to PyPI
+
+# Trusted Publishing (OIDC). No API token is stored in the repo or in Actions
+# secrets: PyPI authenticates the workflow itself. To enable, register this
+# workflow as a trusted publisher on PyPI once (Project -> Publishing):
+#   owner:            Muneeb7860
+#   repository:       agentic-redteam
+#   workflow file:    publish.yml
+#   environment:      pypi
+# Bootstrapping a brand-new project name: PyPI supports a "pending" trusted
+# publisher created before the first upload, which is the tokenless way to do
+# the very first publish too.
+
+on:
+  # Publish when a GitHub Release is published — the release tag is the record
+  # of what version went out, so there is a single source of truth.
+  release:
+    types: [published]
+  # Manual button for a controlled re-run without cutting a release.
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and check distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+
+      - name: twine check (fails if the PyPI page would not render)
+        run: python -m twine check dist/*
+
+      - name: Guard against version clobber
+        # PyPI refuses to overwrite an existing version, but failing here gives
+        # a clearer message than a mid-upload 400 and runs before publish.
+        run: |
+          VERSION=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "Building version $VERSION"
+          test -f "dist/agentic_redteam-${VERSION}-py3-none-any.whl" \
+            || { echo "wheel for $VERSION not found in dist/"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI (Trusted Publishing)
+    needs: build
+    runs-on: ubuntu-latest
+    # The environment name must match the trusted publisher config on PyPI.
+    environment: pypi
+    permissions:
+      # id-token is what lets PyPI verify this workflow via OIDC. Without it,
+      # Trusted Publishing cannot mint the short-lived upload credential.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No `password:` — the action uses OIDC when id-token: write is granted.

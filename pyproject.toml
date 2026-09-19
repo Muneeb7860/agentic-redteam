@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentic-redteam"
 version = "1.1.0"
-description = "Open-source AI Agent Security Scanner — 114 payloads, 8 OWASP categories, SARIF export"
+description = "Security scanner for AI agents and MCP servers — 136 payloads across 12 OWASP/ASI categories, native MCP fuzzer, SARIF export"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
